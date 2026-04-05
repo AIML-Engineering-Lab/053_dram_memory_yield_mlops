@@ -1,0 +1,22 @@
+# P053 — Prometheus Scrape Config
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "spark-master"
+    metrics_path: /metrics/json
+    static_configs:
+      - targets: ["spark-master:8080"]
+
+  - job_name: "kafka-jmx"
+    static_configs:
+      - targets: ["kafka:9092"]
+
+  - job_name: "airflow"
+    static_configs:
+      - targets: ["airflow-webserver:8080"]

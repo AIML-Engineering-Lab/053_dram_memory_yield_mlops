@@ -1,0 +1,10 @@
+# ═══════════════════════════════════════════════════════════════
+# P053 — Namespace + RBAC
+# ═══════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiml-prod
+  labels:
+    team: smai
+    purpose: production-inference

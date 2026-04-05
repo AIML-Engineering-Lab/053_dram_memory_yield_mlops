@@ -1,0 +1,11 @@
+# P053 — Serving Dependencies (minimal for Docker container)
+# Separate from full requirements.txt to keep container small
+torch>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+joblib>=1.3
+fastapi>=0.104
+uvicorn>=0.24
+prometheus-client>=0.19
+pydantic>=2.5
+scipy>=1.11

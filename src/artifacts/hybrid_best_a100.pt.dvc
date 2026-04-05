@@ -1,0 +1,5 @@
+outs:
+- md5: 0ded5e05b76eec44e10de846d00fee68
+  size: 1290543
+  hash: md5
+  path: hybrid_best_a100.pt

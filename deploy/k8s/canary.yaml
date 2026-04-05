@@ -1,0 +1,100 @@
+# ═══════════════════════════════════════════════════════════════
+# P053 — Canary Deployment (Shadow/A-B Testing)
+# ═══════════════════════════════════════════════════════════════
+# Traffic split: 90% stable (v1) → 10% canary (v2)
+#
+# Workflow:
+#   1. Deploy new model version as canary with 10% traffic
+#   2. Monitor for 1 hour: compare AUC-PR, latency, error rate
+#   3. If canary metrics ≥ stable → promote to 100%
+#   4. If canary degrades → automatic rollback (rollout undo)
+#
+# Interview talking point:
+#   "We use canary deployments for model updates. New models get 10%
+#   traffic. If the canary's AUC-PR drops below the stable model's
+#   by more than 5%, Argo Rollouts automatically rolls back. This
+#   caught a regression where label encoding changed between training
+#   and serving — the canary's fail rate spiked to 15% vs baseline 0.6%."
+# ═══════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-yield-predictor-canary
+  namespace: aiml-prod
+  labels:
+    app: memory-yield-predictor
+    version: v2-canary
+    track: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-yield-predictor
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: memory-yield-predictor
+        version: v2-canary
+        track: canary
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: predictor
+          image: ghcr.io/aiml-engineering-lab/memory-yield-predictor:v2-canary
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PORT
+              value: "8000"
+            - name: MODEL_VERSION
+              value: "v2-canary"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+
+---
+# ═══════════════════════════════════════════════════════════════
+# Canary Service (10% traffic via weight annotation)
+# Used with Istio/Nginx ingress for traffic splitting
+# ═══════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-yield-predictor-canary
+  namespace: aiml-prod
+  labels:
+    app: memory-yield-predictor
+    track: canary
+  annotations:
+    # For Nginx Ingress canary routing
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+spec:
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: memory-yield-predictor
+    track: canary

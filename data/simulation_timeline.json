@@ -1,0 +1,918 @@
+{
+  "start_time": "2026-04-04T16:57:23.631619",
+  "simulation_start_date": "2026-02-20",
+  "simulation_end_date": "2026-03-31",
+  "rows_per_day": 1000000,
+  "total_days": 40,
+  "days": [
+    {
+      "day": 1,
+      "date": "2026-02-20",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.6,
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 2,
+      "date": "2026-02-21",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.6,
+      "elapsed_sec": 2.0
+    },
+    {
+      "day": 3,
+      "date": "2026-02-22",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.6,
+      "elapsed_sec": 2.1
+    },
+    {
+      "day": 4,
+      "date": "2026-02-23",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.5,
+      "elapsed_sec": 2.1
+    },
+    {
+      "day": 5,
+      "date": "2026-02-24",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.6,
+      "elapsed_sec": 2.1
+    },
+    {
+      "day": 6,
+      "date": "2026-02-25",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.5,
+      "elapsed_sec": 2.1
+    },
+    {
+      "day": 7,
+      "date": "2026-02-26",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.6,
+      "elapsed_sec": 2.0
+    },
+    {
+      "day": 8,
+      "date": "2026-02-27",
+      "scenario": "steady",
+      "model_version": "v1_original",
+      "events": [],
+      "parquet_mb": 42.6,
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 9,
+      "date": "2026-02-28",
+      "scenario": "false_alarm",
+      "model_version": "v1_original",
+      "events": [
+        "drift_clean"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 9,
+        "features_critical": 2,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 1.179142,
+          "cell_leakage_fa": 0.000341,
+          "retention_time_ms": 0.831979,
+          "gate_oxide_thickness_a": 0.000493,
+          "vt_shift_mv": 0.000149,
+          "trcd_ns": 0.000128
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 10,
+      "date": "2026-03-01",
+      "scenario": "auto_recover",
+      "model_version": "v1_original",
+      "events": [
+        "drift_warning_2_features"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 10,
+        "features_critical": 0,
+        "features_warning": 2,
+        "feature_psi": {
+          "test_temp_c": 0.190484,
+          "cell_leakage_fa": 9.7e-05,
+          "retention_time_ms": 0.112467,
+          "gate_oxide_thickness_a": 0.000162,
+          "vt_shift_mv": 0.000247,
+          "trcd_ns": 0.000212
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 11,
+      "date": "2026-03-02",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_clean"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 11,
+        "features_critical": 0,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.00641,
+          "cell_leakage_fa": 0.006769,
+          "retention_time_ms": 0.00289,
+          "gate_oxide_thickness_a": 0.016172,
+          "vt_shift_mv": 0.000129,
+          "trcd_ns": 0.000164
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 12,
+      "date": "2026-03-03",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_clean"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 12,
+        "features_critical": 0,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.045608,
+          "cell_leakage_fa": 0.023053,
+          "retention_time_ms": 0.024012,
+          "gate_oxide_thickness_a": 0.056975,
+          "vt_shift_mv": 0.000138,
+          "trcd_ns": 0.000162
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 13,
+      "date": "2026-03-04",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_warning_1_features"
+      ],
+      "parquet_mb": 42.6,
+      "drift": {
+        "analysis_day": 13,
+        "features_critical": 0,
+        "features_warning": 1,
+        "feature_psi": {
+          "test_temp_c": 0.074765,
+          "cell_leakage_fa": 0.038262,
+          "retention_time_ms": 0.062505,
+          "gate_oxide_thickness_a": 0.134722,
+          "vt_shift_mv": 0.000284,
+          "trcd_ns": 7.5e-05
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 14,
+      "date": "2026-03-05",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_clean"
+      ],
+      "parquet_mb": 42.6,
+      "drift": {
+        "analysis_day": 14,
+        "features_critical": 1,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.030177,
+          "cell_leakage_fa": 0.046046,
+          "retention_time_ms": 0.018199,
+          "gate_oxide_thickness_a": 0.236151,
+          "vt_shift_mv": 0.00015,
+          "trcd_ns": 0.000117
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 15,
+      "date": "2026-03-06",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_3_features",
+        "retrain_blocked_staleness_15d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 15,
+        "features_critical": 3,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.490244,
+          "cell_leakage_fa": 0.055389,
+          "retention_time_ms": 0.368278,
+          "gate_oxide_thickness_a": 0.372141,
+          "vt_shift_mv": 0.00041,
+          "trcd_ns": 0.000109
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.6
+    },
+    {
+      "day": 16,
+      "date": "2026-03-07",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_warning_2_features"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 16,
+        "features_critical": 1,
+        "features_warning": 2,
+        "feature_psi": {
+          "test_temp_c": 0.198805,
+          "cell_leakage_fa": 0.056924,
+          "retention_time_ms": 0.152307,
+          "gate_oxide_thickness_a": 0.52686,
+          "vt_shift_mv": 0.000237,
+          "trcd_ns": 0.000151
+        },
+        "should_retrain": false
+      },
+      "elapsed_sec": 3.3
+    },
+    {
+      "day": 17,
+      "date": "2026-03-08",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_3_features",
+        "retrain_blocked_staleness_17d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 17,
+        "features_critical": 3,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.315163,
+          "cell_leakage_fa": 0.098186,
+          "retention_time_ms": 0.21915,
+          "gate_oxide_thickness_a": 0.705479,
+          "vt_shift_mv": 0.000101,
+          "trcd_ns": 0.000187
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 18,
+      "date": "2026-03-09",
+      "scenario": "gradual_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_3_features",
+        "retrain_blocked_staleness_18d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 18,
+        "features_critical": 3,
+        "features_warning": 1,
+        "feature_psi": {
+          "test_temp_c": 1.28856,
+          "cell_leakage_fa": 0.106283,
+          "retention_time_ms": 0.941116,
+          "gate_oxide_thickness_a": 0.921162,
+          "vt_shift_mv": 0.000189,
+          "trcd_ns": 7.8e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 19,
+      "date": "2026-03-10",
+      "scenario": "sudden_shift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_3_features",
+        "retrain_blocked_staleness_19d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 19,
+        "features_critical": 3,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.413625,
+          "cell_leakage_fa": 0.099779,
+          "retention_time_ms": 1.129835,
+          "gate_oxide_thickness_a": 0.920029,
+          "vt_shift_mv": 0.000219,
+          "trcd_ns": 0.000131
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.3
+    },
+    {
+      "day": 20,
+      "date": "2026-03-11",
+      "scenario": "threshold_1",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_3_features",
+        "retrain_blocked_staleness_20d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 20,
+        "features_critical": 3,
+        "features_warning": 2,
+        "feature_psi": {
+          "test_temp_c": 0.68676,
+          "cell_leakage_fa": 0.168427,
+          "retention_time_ms": 1.455191,
+          "gate_oxide_thickness_a": 1.427506,
+          "vt_shift_mv": 0.109858,
+          "trcd_ns": 0.0001
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 21,
+      "date": "2026-03-12",
+      "scenario": "continued_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_21d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 21,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.721131,
+          "cell_leakage_fa": 0.243374,
+          "retention_time_ms": 1.593513,
+          "gate_oxide_thickness_a": 1.689799,
+          "vt_shift_mv": 0.018312,
+          "trcd_ns": 0.000144
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 22,
+      "date": "2026-03-13",
+      "scenario": "continued_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_22d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 22,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 0.934103,
+          "cell_leakage_fa": 0.273208,
+          "retention_time_ms": 1.79434,
+          "gate_oxide_thickness_a": 1.984383,
+          "vt_shift_mv": 0.041175,
+          "trcd_ns": 6e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 23,
+      "date": "2026-03-14",
+      "scenario": "continued_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_23d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 23,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 1.498971,
+          "cell_leakage_fa": 0.309686,
+          "retention_time_ms": 2.600917,
+          "gate_oxide_thickness_a": 2.307457,
+          "vt_shift_mv": 0.07271,
+          "trcd_ns": 0.000225
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.8
+    },
+    {
+      "day": 24,
+      "date": "2026-03-15",
+      "scenario": "continued_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_24d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 24,
+        "features_critical": 4,
+        "features_warning": 1,
+        "feature_psi": {
+          "test_temp_c": 1.241207,
+          "cell_leakage_fa": 0.329658,
+          "retention_time_ms": 2.431332,
+          "gate_oxide_thickness_a": 2.635126,
+          "vt_shift_mv": 0.10623,
+          "trcd_ns": 0.000176
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.7
+    },
+    {
+      "day": 25,
+      "date": "2026-03-16",
+      "scenario": "continued_drift",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_25d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 25,
+        "features_critical": 4,
+        "features_warning": 1,
+        "feature_psi": {
+          "test_temp_c": 1.219797,
+          "cell_leakage_fa": 0.363528,
+          "retention_time_ms": 2.380442,
+          "gate_oxide_thickness_a": 3.007657,
+          "vt_shift_mv": 0.155186,
+          "trcd_ns": 8.4e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 3.2
+    },
+    {
+      "day": 26,
+      "date": "2026-03-17",
+      "scenario": "threshold_2",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_26d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 26,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 1.865719,
+          "cell_leakage_fa": 0.464237,
+          "retention_time_ms": 3.268514,
+          "gate_oxide_thickness_a": 3.34539,
+          "vt_shift_mv": 0.211963,
+          "trcd_ns": 0.000161
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 3.5
+    },
+    {
+      "day": 27,
+      "date": "2026-03-18",
+      "scenario": "worsening",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_27d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 27,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 2.111212,
+          "cell_leakage_fa": 0.503214,
+          "retention_time_ms": 3.73501,
+          "gate_oxide_thickness_a": 3.670191,
+          "vt_shift_mv": 0.311404,
+          "trcd_ns": 0.000106
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 28,
+      "date": "2026-03-19",
+      "scenario": "worsening",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_28d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 28,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 1.754391,
+          "cell_leakage_fa": 0.552076,
+          "retention_time_ms": 3.61739,
+          "gate_oxide_thickness_a": 4.037265,
+          "vt_shift_mv": 0.429467,
+          "trcd_ns": 0.000141
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 29,
+      "date": "2026-03-20",
+      "scenario": "worsening",
+      "model_version": "v1_original",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_29d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 29,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 1.448698,
+          "cell_leakage_fa": 0.485856,
+          "retention_time_ms": 3.377777,
+          "gate_oxide_thickness_a": 4.433446,
+          "vt_shift_mv": 0.554767,
+          "trcd_ns": 4.3e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 30,
+      "date": "2026-03-21",
+      "scenario": "worsening",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_5_features",
+        "RETRAIN_TRIGGERED"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 30,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 2.382846,
+          "cell_leakage_fa": 0.604037,
+          "retention_time_ms": 4.608299,
+          "gate_oxide_thickness_a": 4.828703,
+          "vt_shift_mv": 0.70542,
+          "trcd_ns": 0.000158
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 31,
+      "date": "2026-03-22",
+      "scenario": "retrain_trigger",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_1d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 31,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 4.011374,
+          "cell_leakage_fa": 0.58884,
+          "retention_time_ms": 6.5721,
+          "gate_oxide_thickness_a": 5.202295,
+          "vt_shift_mv": 0.709386,
+          "trcd_ns": 6.8e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.9
+    },
+    {
+      "day": 32,
+      "date": "2026-03-23",
+      "scenario": "post_retrain_recovery",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_2d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 32,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 2.924703,
+          "cell_leakage_fa": 0.726621,
+          "retention_time_ms": 5.266357,
+          "gate_oxide_thickness_a": 5.199599,
+          "vt_shift_mv": 0.000143,
+          "trcd_ns": 0.000105
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.6
+    },
+    {
+      "day": 33,
+      "date": "2026-03-24",
+      "scenario": "post_retrain_recovery",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_3d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 33,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 4.166956,
+          "cell_leakage_fa": 0.705953,
+          "retention_time_ms": 6.304909,
+          "gate_oxide_thickness_a": 5.180082,
+          "vt_shift_mv": 0.000216,
+          "trcd_ns": 0.000158
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.8
+    },
+    {
+      "day": 34,
+      "date": "2026-03-25",
+      "scenario": "post_retrain_recovery",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_4d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 34,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 2.592543,
+          "cell_leakage_fa": 0.749385,
+          "retention_time_ms": 4.950328,
+          "gate_oxide_thickness_a": 5.09718,
+          "vt_shift_mv": 0.000161,
+          "trcd_ns": 0.000101
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.8
+    },
+    {
+      "day": 35,
+      "date": "2026-03-26",
+      "scenario": "post_retrain_recovery",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_5d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 35,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 3.347185,
+          "cell_leakage_fa": 0.691965,
+          "retention_time_ms": 5.700175,
+          "gate_oxide_thickness_a": 5.282387,
+          "vt_shift_mv": 0.00019,
+          "trcd_ns": 0.000175
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.6
+    },
+    {
+      "day": 36,
+      "date": "2026-03-27",
+      "scenario": "second_drift",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_6d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 36,
+        "features_critical": 4,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 2.860737,
+          "cell_leakage_fa": 0.739005,
+          "retention_time_ms": 5.226802,
+          "gate_oxide_thickness_a": 6.278065,
+          "vt_shift_mv": 0.038532,
+          "trcd_ns": 7.8e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 37,
+      "date": "2026-03-28",
+      "scenario": "second_drift",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_4_features",
+        "retrain_blocked_staleness_7d"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 37,
+        "features_critical": 4,
+        "features_warning": 1,
+        "feature_psi": {
+          "test_temp_c": 2.427169,
+          "cell_leakage_fa": 0.767069,
+          "retention_time_ms": 4.733231,
+          "gate_oxide_thickness_a": 5.816984,
+          "vt_shift_mv": 0.157083,
+          "trcd_ns": 0.000165
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.4
+    },
+    {
+      "day": 38,
+      "date": "2026-03-29",
+      "scenario": "second_drift",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_8d"
+      ],
+      "parquet_mb": 42.4,
+      "drift": {
+        "analysis_day": 38,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 6.180061,
+          "cell_leakage_fa": 0.814622,
+          "retention_time_ms": 8.375355,
+          "gate_oxide_thickness_a": 5.987593,
+          "vt_shift_mv": 0.341783,
+          "trcd_ns": 5.6e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 39,
+      "date": "2026-03-30",
+      "scenario": "bad_model_deploy",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_9d",
+        "BAD_MODEL_DEPLOYED",
+        "CANARY_FAILED",
+        "ROLLBACK_TO_v2"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 39,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 3.397614,
+          "cell_leakage_fa": 0.783046,
+          "retention_time_ms": 5.430116,
+          "gate_oxide_thickness_a": 6.006361,
+          "vt_shift_mv": 0.342502,
+          "trcd_ns": 9.1e-05
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.5
+    },
+    {
+      "day": 40,
+      "date": "2026-03-31",
+      "scenario": "final_recovery",
+      "model_version": "v2_retrained_day30",
+      "events": [
+        "drift_critical_5_features",
+        "retrain_blocked_staleness_10d",
+        "SYSTEM_RECOVERED"
+      ],
+      "parquet_mb": 42.5,
+      "drift": {
+        "analysis_day": 40,
+        "features_critical": 5,
+        "features_warning": 0,
+        "feature_psi": {
+          "test_temp_c": 3.555381,
+          "cell_leakage_fa": 0.799021,
+          "retention_time_ms": 6.071925,
+          "gate_oxide_thickness_a": 6.295346,
+          "vt_shift_mv": 0.34606,
+          "trcd_ns": 0.000247
+        },
+        "should_retrain": true
+      },
+      "elapsed_sec": 2.4
+    }
+  ],
+  "total_elapsed_sec": 100.8,
+  "total_elapsed_min": 1.7,
+  "retrain_events": [
+    {
+      "day": 30,
+      "new_model": "v2_retrained_day30"
+    }
+  ]
+}

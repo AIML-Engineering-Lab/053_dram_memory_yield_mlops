@@ -1,0 +1,48 @@
+# Data (large files tracked by DVC)
+data/*.parquet
+data/*.npz
+!data/*.dvc
+data/production/
+data/drift_reports/
+
+# ML artifacts
+mlruns/
+mlartifacts/
+mlflow.db
+mlflow_colab.db
+models/*.pt
+models/*.onnx
+
+# Model checkpoints & GPU artifacts (downloaded from Colab)
+notebooks/checkpoints/
+notebooks/gpu_artifacts/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# Docker
+deploy/docker/.env
+deploy/aws/.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+*.swp
+*~
+Thumbs.db
+
+# Generator scripts (should be deleted after use)
+_gen_*.py
+
+# Simulation logs
+simulation_*.log
+
+# Generator/temp scripts (should be deleted, not committed)
+_gen_*.py
+simulation_medium.log

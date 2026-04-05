@@ -1,0 +1,168 @@
+# ═══════════════════════════════════════════════════════════════
+# P053 — Docker Compose Production Stack
+# ═══════════════════════════════════════════════════════════════
+# Services:
+#   api        — FastAPI prediction endpoint (port 8000)
+#   prometheus — Metrics collection (port 9090)
+#   grafana    — Dashboards & alerting (port 3000)
+#   redis      — Prediction cache (port 6379)
+#
+# Usage:
+#   cd 053_memory_yield_predictor
+#   docker compose -f deploy/docker/docker-compose.yml up -d
+#   open http://localhost:3000  (Grafana, admin/admin)
+#   open http://localhost:8000/docs  (FastAPI Swagger)
+#
+# Interview talking point:
+#   "The local stack mirrors production: API → Prometheus scrapes /metrics
+#   every 15s → Grafana visualizes latency percentiles and prediction drift.
+#   Redis caches repeated wafer die predictions (same lot/wafer/die → same
+#   features → same result) with 5-minute TTL."
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ─── Prediction API ───
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: p053-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ../../models:/app/models:ro
+      - ../../src/artifacts:/app/artifacts:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ─── Redis Cache ───
+  redis:
+    image: redis:7-alpine
+    container_name: p053-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  # ─── Prometheus ───
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: p053-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  # ─── Grafana ───
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: p053-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana_provisioning:/etc/grafana/provisioning:ro
+      - ./grafana_dashboard.json:/var/lib/grafana/dashboards/p053.json:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+
+  # ─── MLflow PostgreSQL Backend ───
+  mlflow-postgres:
+    image: postgres:16-alpine
+    container_name: p053-mlflow-db
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    volumes:
+      - mlflow_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+
+  # ─── MLflow Tracking Server ───
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.19.0
+    container_name: p053-mlflow
+    ports:
+      - "5001:5000"
+    entrypoint: ["bash", "-c", "pip install -q psycopg2-binary && exec mlflow server --host=0.0.0.0 --port=5000 --backend-store-uri=postgresql://mlflow:mlflow@mlflow-postgres:5432/mlflow --default-artifact-root=mlflow-artifacts:/ --serve-artifacts --artifacts-destination=/mlflow/mlartifacts"]
+    volumes:
+      - mlflow_artifacts:/mlflow/mlartifacts
+    depends_on:
+      mlflow-postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  mlflow_pg_data:
+  mlflow_artifacts:

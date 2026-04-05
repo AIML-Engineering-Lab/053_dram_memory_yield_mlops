@@ -1,0 +1,42 @@
+{
+  "train": {
+    "rows": 10000000,
+    "fails": 61698,
+    "fail_rate": 0.617,
+    "missing_cells": 3796537,
+    "missing_pct": 1.03,
+    "noisy_labels": 12464,
+    "file_size_mb": 533.7,
+    "n_features": 33
+  },
+  "val": {
+    "rows": 2000000,
+    "fails": 15595,
+    "fail_rate": 0.78,
+    "missing_cells": 760106,
+    "missing_pct": 1.03,
+    "noisy_labels": 2687,
+    "file_size_mb": 107.0,
+    "n_features": 33
+  },
+  "test": {
+    "rows": 2000000,
+    "fails": 13151,
+    "fail_rate": 0.658,
+    "missing_cells": 760174,
+    "missing_pct": 1.03,
+    "noisy_labels": 2567,
+    "file_size_mb": 107.0,
+    "n_features": 33
+  },
+  "unseen": {
+    "rows": 2000000,
+    "fails": 16721,
+    "fail_rate": 0.836,
+    "missing_cells": 759464,
+    "missing_pct": 1.03,
+    "noisy_labels": 2791,
+    "file_size_mb": 107.3,
+    "n_features": 33
+  }
+}

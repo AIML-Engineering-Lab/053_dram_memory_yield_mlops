@@ -1,0 +1,16 @@
+# ═══════════════════════════════════════════════════════════════
+# P053 — ConfigMap for Model Configuration
+# ═══════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yield-predictor-config
+  namespace: aiml-prod
+  labels:
+    app: memory-yield-predictor
+data:
+  model_version: "v1"
+  drift_psi_threshold: "0.2"
+  drift_check_interval: "3600"
+  prediction_threshold: "0.5"
+  max_batch_size: "1024"

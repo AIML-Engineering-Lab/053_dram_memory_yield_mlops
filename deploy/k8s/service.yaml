@@ -1,0 +1,19 @@
+# ═══════════════════════════════════════════════════════════════
+# P053 — Kubernetes Service
+# ═══════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-yield-predictor
+  namespace: aiml-prod
+  labels:
+    app: memory-yield-predictor
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: memory-yield-predictor

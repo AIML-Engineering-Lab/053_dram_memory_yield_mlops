@@ -1,0 +1,5 @@
+outs:
+- md5: d1e15d7d0768a859707fc20f2eb6c154
+  size: 7567144
+  hash: md5
+  path: preprocessed_sample.npz
