@@ -651,43 +651,47 @@ GitHub repo → Settings → Secrets and variables → Actions:
 
 ---
 
-## 11. NB03 — 4-Session Production Training Design
+## 11. Architecture Revision — NB03 Day 1 Only, AWS for 40-Day Simulation
 
-### Why 4 Sessions?
+### Original Design (Superseded)
 
-The 4-session structure tells a complete production ML lifecycle story:
+The original NB03 had 4 training sessions (Day 1/20/31/39) all running in a single Colab notebook, simulating drift via feature-space shifts. This worked as a demonstration but had a fundamental problem: **it wasn't production-realistic**. A principal engineer doesn't retrain on Colab every time drift is detected — the entire point of MLOps infrastructure is to automate this.
 
-| Session | Day | Concept Demonstrated | Interview Story |
-|---------|-----|---------------------|----------------|
-| 1 (Day 1) | Initial training | Training from scratch, A100 bfloat16 | "Built the first production model" |
-| 2 (Day 20) | Moderate drift | Fine-tuning, transfer learning | "Handled data drift with minimal disruption" |
-| 3 (Day 31) | Severe drift | Catastrophic forgetting | "When fine-tuning goes wrong" |
-| 4 (Day 39) | Recovery | From-scratch with accumulated knowledge | "Knowing when to start over" |
+### Revised Architecture
 
-### Drift Simulation in Feature Space
-
-Instead of regenerating raw data and re-running the full preprocessing pipeline for each drift session, we simulate drift directly on the preprocessed (standardized) features:
-
-```python
-# Shift drift-prone features by magnitude × std
-X_drift[:, feature_idx] += shift + noise
-```
-
-**Why this approach?**
-1. The preprocessing pipeline (`preprocess.py`) has 7 steps and was designed for the initial training data. It doesn't expose a `transform_only()` method for new data.
-2. Simulating drift in standardized space is what the drift detectors actually measure (PSI/KL/KS operate on transformed features).
-3. Much faster — no need to generate 4M raw records and run full pipeline.
-4. More controllable — we can precisely set PSI levels for each session.
-
-### Learning Rate Schedule Across Sessions
+**NB03 = Day 1 only.** The notebook trains the initial champion model on Colab A100, saves artifacts to Google Drive, and that's it. Everything else runs on AWS:
 
 ```
-Day 1:  lr=1e-3  → Aggressive exploration (random init, need fast convergence)
-Day 20: lr=3e-4  → Gentle adaptation (preserve Day 1 knowledge)
-Day 31: lr=1e-4  → Minimal perturbation (already adapted, major drift)
-Day 39: lr=5e-4  → Balanced restart (informed by v2/v3 LR sensitivity)
+PHASE 1 — Colab A100 (NB03, one-time):
+  Generate 16M rows → Train HybridTransformerCNN → Best weights to Drive
+  → Download locally → Push to S3 → Register as v1 @champion
+
+PHASE 2 — AWS EC2 (Airflow, automated 40 days):
+  Day 2-19:  generate 5M/day → Kafka → Spark ETL → inference → drift check → pass ✅
+  Day 20:    PSI > 0.10 → retrain ON AWS → v2 → canary → promote @champion
+  Day 21-30: daily inference with v2
+  Day 31:    PSI > 0.20 → retrain ON AWS → v3 → canary → promote @champion
+  Day 32-38: daily inference with v3
+  Day 39:    canary deliberately fails → rollback to v3 → from-scratch → v4
+  Day 40:    simulation complete, final metrics logged
 ```
 
-The Day 39 LR (5e-4) is lower than Day 1 (1e-3) — this is NOT arbitrary. The float16 collapse experiments showed the optimal operating LR for this loss landscape is < 3e-4. Starting at 5e-4 with cosine annealing reaches that sweet spot within 5 epochs.
+### Why This Is Better
+
+1. **Production-realistic**: Retraining on the same cloud where inference runs = no human in the loop
+2. **Full infrastructure demo**: Kafka + Spark + Airflow + MLflow all running on EC2, not simulated in a notebook
+3. **Interview-ready**: "I train v1 on Colab A100, deploy to AWS, and the 40-day lifecycle is fully automated with Airflow orchestration"
+4. **Cost-effective**: ~$6 AWS total for the full 40-day simulation on t3.medium
+
+### Drift Simulation on AWS
+
+`src/streaming_data_generator.py` generates realistic DRAM manufacturing data with 12 drift scenarios (tool wear, seasonal, contamination, etc.) that progressively shift feature distributions. This runs directly on EC2 via Airflow DAGs — no Colab involvement.
+
+### Transfer Path
+
+```
+Colab → Google Drive → Mac local → S3 → EC2 pulls model
+Colab → MLflow SQLite → Docker PostgreSQL retrolog → AWS RDS
+```
 
 ---

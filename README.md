@@ -47,20 +47,31 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 
 ---
 
-## 🏭 4-Session Production Training Lifecycle
+## 🏭 40-Day Production Lifecycle
 
-The model goes through 4 training sessions across a 40-day production window, each addressing a different real-world scenario:
+### Phase 1 — Colab A100 (Day 1, one-time)
 
-| Session | Day | Strategy | LR | Scenario |
-|---------|-----|----------|-----|----------|
-| 1 | Day 1 | From scratch | 1e-3 | Initial champion — baseline A100 bfloat16 training |
-| 2 | Day 20 | Fine-tune from Day 1 | 3e-4 | Moderate drift (PSI > 0.10 on 4 features) — chamber seasoning |
-| 3 | Day 31 | Fine-tune from Day 20 | 1e-4 | Severe drift (PSI > 0.20 on 7 features) — catastrophic forgetting |
-| 4 | Day 39 | From scratch (recovery) | 5e-4 | Fine-tuning can't fix it — fresh start with learned LR knowledge |
+Train the champion model on Colab Pro A100 using `NB03_production_training.ipynb`:
+- 16M rows, HybridTransformerCNN, FocalLoss, bfloat16 AMP
+- Model weights → Google Drive → S3 → registered as v1 @champion
 
-**Key takeaway:** Session 3 demonstrates catastrophic forgetting — fine-tuning on severely drifted data corrupts the model. Session 4 recovers by training from scratch with a smarter learning rate (5e-4 vs Day 1's 1e-3), informed by the bfloat16 collapse experiments.
+### Phase 2 — AWS EC2 (Days 2-40, fully automated)
 
-> See `notebooks/NB03_production_training.ipynb` for the full 38-cell notebook with ~3,300 words of narrative explaining every decision.
+Airflow orchestrates the entire lifecycle on EC2 with Kafka + Spark + MLflow:
+
+| Day | Event | Automated Action |
+|-----|-------|-----------------|
+| 2-19 | Daily inference (5M rows/day) | Kafka → Spark ETL → predict → drift check → pass ✅ |
+| 20 | Moderate drift detected (PSI > 0.10) | Retrain on AWS → v2 → canary → promote @champion |
+| 21-30 | Daily inference with v2 | Drift stabilized |
+| 31 | Severe drift detected (PSI > 0.20) | Retrain on AWS → v3 → canary → promote @champion |
+| 32-38 | Daily inference with v3 | Monitoring |
+| 39 | Canary deliberately fails | Rollback to v3, from-scratch → v4 |
+| 40 | Simulation complete | Final metrics logged |
+
+**Total:** 200M rows processed, 3 retrains, 1 rollback — zero manual intervention.
+
+> See `notebooks/NB03_production_training.ipynb` for Day 1 training and `docs/AWS_SETUP_GUIDE.md` for deployment instructions.
 
 ---
 
