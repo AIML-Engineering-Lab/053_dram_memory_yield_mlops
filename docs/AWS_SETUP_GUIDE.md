@@ -1,8 +1,8 @@
 # P053 — Complete AWS Setup Guide (First-Time AWS Users)
 
-> **Budget:** ~$15 total for the 40-day simulation  
+> **Budget:** ~$7-10 total for the 40-day simulation (no free tier)  
 > **Time to setup:** ~30 minutes  
-> **Region:** us-west-2 (Oregon) — cheapest for EC2 + S3  
+> **Region:** us-west-2 (Oregon) — cheapest for EC2 + S3 (latency irrelevant for batch simulation)  
 > **Instance:** t3.medium ($0.0416/hr) for daily pipeline, g4dn.xlarge ($0.526/hr) for retrain only
 
 ---
@@ -36,7 +36,7 @@ If you already have an account, skip to Step 2.
 6. Select **Basic Support** (free tier)
 7. Sign in to Console: https://console.aws.amazon.com/
 
-> **Free Tier:** New accounts get 12 months of free tier: 750 hrs/month t2.micro, 5 GB S3, 20 GB RDS. We'll use slightly larger instances but keep costs minimal.
+> **Free Tier Note:** If your account is >12 months old, free tier has expired. Main impact: RDS db.t3.micro costs ~$0.018/hr instead of free. We minimize this by stopping RDS when not in use. See Cost Control section for details.
 
 ---
 
@@ -92,6 +92,7 @@ The root account has unlimited access. Secure it immediately.
    - Tab: **Security credentials**
    - Scroll to **Access keys** → **Create access key**
    - Use case: **Command Line Interface (CLI)**
+   - ⚠️ AWS may recommend alternatives (SSO, CloudShell) — **ignore these**. We need access keys for GitHub Actions CI/CD. Click the acknowledgment checkbox.
    - ☑️ Check the confirmation box → **Next**
    - Description tag: `p053-local-and-cicd`
    - **IMPORTANT:** Copy both values NOW. You see the Secret only ONCE:
@@ -110,8 +111,8 @@ The root account has unlimited access. Secure it immediately.
 Open Terminal on your Mac:
 
 ```bash
-# Install via Homebrew (recommended)
-brew install awscli
+# Install via Homebrew (Apple Silicon Mac — MUST use arch -arm64)
+arch -arm64 brew install awscli
 
 # Verify installation
 aws --version
@@ -425,7 +426,17 @@ aws rds describe-db-instances \
 
 Save this — it looks like: `p053-mlflow.xxxxxxxxxxxx.us-west-2.rds.amazonaws.com`
 
-**Cost:** db.t3.micro = 750 hrs/month free (first 12 months). After that: ~$12.50/month.
+**Cost:** db.t3.micro = $0.018/hr. **Stop when not using** to save money:
+
+```bash
+# Stop RDS (from Mac) — takes ~5 min
+aws rds stop-db-instance --db-instance-identifier p053-mlflow
+
+# Start RDS when needed — takes ~5 min
+aws rds start-db-instance --db-instance-identifier p053-mlflow
+```
+
+> **Note:** AWS auto-starts stopped RDS instances after 7 days. Set a calendar reminder to stop it again if you're pausing the project.
 
 ---
 
@@ -501,11 +512,11 @@ aws s3 ls s3://p053-mlflow-artifacts/
 |----------|-------|------|
 | EC2 t3.medium | ~80 hrs (2 hrs/day × 40 days) | $3.33 |
 | EC2 g4dn.xlarge | ~4 hrs (retrain × 3 sessions) | $2.10 |
-| RDS db.t3.micro | Free tier (first year) | $0 |
+| RDS db.t3.micro | ~80 hrs (stop when not using) | $1.44 |
 | S3 (5 GB) | Storage + requests | $0.15 |
-| ECR (500 MB) | Free tier | $0 |
+| ECR (500 MB) | Storage | $0.05 |
 | Data transfer | Minimal (within region) | $0.10 |
-| **Total** | | **~$5.68** |
+| **Total** | | **~$7.17** |
 
 ### Emergency: Delete Everything
 
