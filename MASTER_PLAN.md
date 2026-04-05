@@ -102,21 +102,23 @@
 
 | # | Step | What It Does | Time | Who | $ | Status |
 |---|------|-------------|------|-----|---|--------|
-| 47 | Verify AWS CLI configured | `aws sts get-caller-identity` | 1 min | User | $0 | ⬜ |
-| 48 | Run setup_aws.sh | Creates S3, RDS PostgreSQL, ECR | 10 min | Both | $0 | ⬜ |
-| 49 | Wait for RDS available | `aws rds wait db-instance-available` | 10 min | Auto | $0.017/hr | ⬜ |
-| 50 | Configure RDS security group | Allow port 5432 from EC2 SG only | 5 min | User | $0 | ⬜ |
-| 51 | Create S3 bucket policy | Restrict access to IAM user/role | 5 min | Both | $0 | ⬜ |
-| 52 | Launch EC2 instance | t3.medium, Amazon Linux 2023, 30 GB gp3 | 5 min | User | $0.04/hr | ⬜ |
+| 47 | Verify AWS CLI configured | `aws sts get-caller-identity` → account 718036735422 | 1 min | User | $0 | 👤 |
+| 47a | Create IAM user + policies | p053-cicd-user with EC2/S3/RDS/ECR/IAM policies | 5 min | User | $0 | 👤 |
+| 47b | Create S3 bucket | `aws s3 mb s3://p053-mlflow-artifacts` + versioning | 2 min | User | $0 | 👤 |
+| 47c | Create ECR repository | `aws ecr create-repository` → 053-memory-yield-predictor | 2 min | User | $0 | 👤 |
+| 47d | Create EC2 key pair | p053-key saved at ~/.ssh/p053-key.pem | 2 min | User | $0 | 👤 |
+| 47e | Create security group + rules | p053-sg (sg-0f11ba29c1155cba3), 6 ports from 121.6.66.58 | 5 min | User | $0 | 👤 |
+| 47f | Create .env.aws + commands guide | All AWS values documented, commands explained | 10 min | Copilot | $0 | ✅ |
+| 52 | Launch EC2 instance | t3.medium, Ubuntu 22.04, 30 GB gp3 ⚠️ CHARGES START | 5 min | User | $0.04/hr | ⬜ |
 | 53 | Install Docker on EC2 | SSH → install Docker + compose | 10 min | Both | $0 | ⬜ |
-| 54 | Configure EC2 security groups | Open 22, 5001, 8000, 3000, 9090 | 5 min | User | $0 | ⬜ |
+| 54 | Configure EC2 cost control | CloudWatch alarm + auto-stop if idle | 5 min | Both | $0 | ⬜ |
 | 55 | Copy compose + configs to EC2 | scp or git clone | 5 min | Both | $0 | ⬜ |
 | 56 | Fill in .env on EC2 | RDS endpoint, password, S3 bucket | 5 min | Both | $0 | ⬜ |
-| 57 | Deploy compose on EC2 | `docker compose up -d` | 5 min | Both | $0 | ⬜ |
-| 58 | Verify MLflow UI on AWS | `curl http://<ec2-ip>:5001/...` | 2 min | Both | $0 | ⬜ |
-| 59 | Verify PostgreSQL on RDS | `psql -h <rds> -U mlflow -d mlflow` | 2 min | Both | $0 | ⬜ |
+| 57 | Create RDS PostgreSQL | db.t3.micro ⚠️ CHARGES START ($0.018/hr) | 10 min | User | $0.018/hr | ⬜ |
+| 58 | Deploy compose on EC2 | `docker compose up -d` | 5 min | Both | $0 | ⬜ |
+| 59 | Verify MLflow UI on AWS | `curl http://<ec2-ip>:5001/...` | 2 min | Both | $0 | ⬜ |
 | 60 | Verify S3 access | `aws s3 ls s3://p053-mlflow-artifacts/` | 1 min | Both | $0 | ⬜ |
-| 61 | Run retrolog against AWS MLflow | Import runs into RDS | 5 min | Both | $0 | ⬜ |
+| 61 | Set GitHub Actions secrets | 6 secrets: AWS keys, EC2 IP, ECR URI, etc. | 5 min | User | $0 | ⬜ |
 | 62 | Take AWS screenshots | MLflow, RDS, S3, EC2 consoles | 10 min | User | $0 | ⬜ |
 
 ---

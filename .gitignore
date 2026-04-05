@@ -24,9 +24,10 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-# Docker
+# Docker & AWS secrets
 deploy/docker/.env
 deploy/aws/.env
+deploy/aws/.env.aws
 
 # IDE
 .vscode/

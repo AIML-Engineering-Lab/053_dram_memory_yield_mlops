@@ -15,13 +15,13 @@
 | P2 Notebook | 6/6 | 0 | — |
 | P3 GitHub | 5/7 | 2 | User verifies repo + branch protection |
 | P4 CI/CD | 4/9 | 5 | CI run results + AWS secrets |
-| P5 AWS Infra | 0/16 | 16 | User AWS CLI setup |
+| P5 AWS Infra | 7/18 | 11 | EC2 launch + RDS (charges start) |
 | P6 Colab A100 | 0/16 | 16 | AWS infra ready |
 | P7 40-Day Sim | 0/13 | 13 | Colab training done |
 | P8 Report | 0/6 | 6 | Simulation data |
 | P9 Content | 3/4 | 1 | User LinkedIn review |
 | P10 Polish | 1/8 | 7 | Everything above |
-| **Total** | **39/109** | **70** | |
+| **Total** | **46/111** | **65** | |
 
 ---
 
