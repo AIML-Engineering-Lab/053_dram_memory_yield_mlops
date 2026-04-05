@@ -59,7 +59,7 @@
 
 | # | Step | What It Does | Time | Who | $ | Status |
 |---|------|-------------|------|-----|---|--------|
-| 25 | Create NB03_production_training.ipynb | **34-cell** notebook: **4 sessions** (Day 1/20/31/39), rich storytelling, 2700+ words | 30 min | Copilot | $0 | ✅ |
+| 25 | Create NB03_production_training.ipynb | **38-cell** notebook: **4 sessions** (Day 1/20/31/39), rich storytelling, 3300+ words, drift simulation in feature space | 30 min | Copilot | $0 | ✅ |
 | 26 | Add hardware auto-detection cell | Cell 4: detect_hardware() with CC-based AMP selection | 10 min | Copilot | $0 | ✅ |
 | 27 | Add MLflow connection cell | Cell 6: local SQLite tracking for Colab | 10 min | Copilot | $0 | ✅ |
 | 28 | Add artifact download cell | Cell 19: saves models, benchmarks, MLflow DB to Drive | 10 min | Copilot | $0 | ✅ |
@@ -72,11 +72,11 @@
 
 | # | Step | What It Does | Time | Who | $ | Status |
 |---|------|-------------|------|-----|---|--------|
-| 31 | Create empty repo on GitHub | `AIML-Engineering-Lab/053_memory_yield_mlops` → public → empty | 3 min | User | $0 | ⬜ |
-| 32 | Share repo URL with Copilot | Paste URL in chat | 1 min | User | $0 | ⬜ |
-| 33 | Configure git remote | `git remote add origin <url>` | 1 min | Copilot | $0 | ⬜ |
-| 34 | Initial commit | `git add -A && git commit -m "..."` | 2 min | Copilot | $0 | ⬜ |
-| 35 | Push to GitHub | `git push -u origin main` | 3 min | Copilot | $0 | ⬜ |
+| 31 | Create empty repo on GitHub | `AIML-Engineering-Lab/053_dram_memory_yield_mlops` — created via API | 3 min | Copilot | $0 | ✅ |
+| 32 | Share repo URL with Copilot | https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops | 1 min | Copilot | $0 | ✅ |
+| 33 | Configure git remote | `git remote add origin` — connected to Lab org repo | 1 min | Copilot | $0 | ✅ |
+| 34 | Initial commit | 147 files, 61,968 lines — security verified | 2 min | Copilot | $0 | ✅ |
+| 35 | Push to GitHub | Pushed main branch — CI/CD auto-triggered | 3 min | Copilot | $0 | ✅ |
 | 36 | Verify on GitHub | Check README renders, no secrets | 3 min | User | $0 | ⬜ |
 | 37 | Protect main branch (optional) | Settings → Branches → add rule | 3 min | User | $0 | ⬜ |
 
@@ -89,7 +89,7 @@
 | 38 | Review existing ci.yml | Reviewed: lint→test→build→deploy, GHCR + K8s | 5 min | Copilot | $0 | ✅ |
 | 39 | Update ci.yml for ECR push | Added `ecr-push` job: AWS creds → ECR login → build+push on tag | 15 min | Copilot | $0 | ✅ |
 | 40 | Set GitHub repo secrets | AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, ECR_REPO | 5 min | User | $0 | ⬜ |
-| 41 | Trigger CI run | Push a change or workflow_dispatch | 2 min | Copilot | $0 | ⬜ |
+| 41 | Trigger CI run | Auto-triggered on push to main | 2 min | Copilot | $0 | ✅ |
 | 42 | Verify lint passes | Check Actions tab | 2 min | User | $0 | ⬜ |
 | 43 | Verify tests pass | Check Actions tab — 20/20 | 2 min | User | $0 | ⬜ |
 | 44 | Verify Docker build passes | Check Actions tab | 5 min | User | $0 | ⬜ |

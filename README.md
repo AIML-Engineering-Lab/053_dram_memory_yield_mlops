@@ -1,5 +1,12 @@
 # 🔬 P053 — Memory Yield Predictor: End-to-End MLOps with MLflow
 
+[![CI/CD](https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops/actions/workflows/ci.yml/badge.svg)](https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops/actions)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C.svg)](https://pytorch.org/)
+[![MLflow](https://img.shields.io/badge/MLflow-2.19-0194E2.svg)](https://mlflow.org/)
+[![Docker](https://img.shields.io/badge/Docker-6%20services-2496ED.svg)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 **Production-scale DRAM wafer yield prediction using HybridTransformerCNN on a 16M-row dataset with full MLOps pipeline, MLflow experiment tracking, and Model Registry.**
 
 Predicts die-level failures before electrical test completion using 36 semiconductor process & test features. Demonstrates the complete MLOps lifecycle: EDA → baseline modeling → custom deep learning → MLflow experiment tracking → Model Registry → drift monitoring → 40-day production simulation → containerized deployment with Kafka + Spark + Airflow → SageMaker pipeline — the kind of end-to-end system a Principal Data Scientist / MLOps Engineer designs at Micron, Samsung, or SK Hynix.
@@ -37,6 +44,23 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 - **50,000 wafers/month** × 0.62% fail rate = **310 defective wafers/month**
 - **$45,000** cost per missed defect (customer return)
 - A100 model (21.1% recall) catches 65 defects/month → **$35.4M annual savings**
+
+---
+
+## 🏭 4-Session Production Training Lifecycle
+
+The model goes through 4 training sessions across a 40-day production window, each addressing a different real-world scenario:
+
+| Session | Day | Strategy | LR | Scenario |
+|---------|-----|----------|-----|----------|
+| 1 | Day 1 | From scratch | 1e-3 | Initial champion — baseline A100 bfloat16 training |
+| 2 | Day 20 | Fine-tune from Day 1 | 3e-4 | Moderate drift (PSI > 0.10 on 4 features) — chamber seasoning |
+| 3 | Day 31 | Fine-tune from Day 20 | 1e-4 | Severe drift (PSI > 0.20 on 7 features) — catastrophic forgetting |
+| 4 | Day 39 | From scratch (recovery) | 5e-4 | Fine-tuning can't fix it — fresh start with learned LR knowledge |
+
+**Key takeaway:** Session 3 demonstrates catastrophic forgetting — fine-tuning on severely drifted data corrupts the model. Session 4 recovers by training from scratch with a smarter learning rate (5e-4 vs Day 1's 1e-3), informed by the bfloat16 collapse experiments.
+
+> See `notebooks/NB03_production_training.ipynb` for the full 38-cell notebook with ~3,300 words of narrative explaining every decision.
 
 ---
 
@@ -78,7 +102,8 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 ├── notebooks/
 │   ├── NB01_advanced_eda.ipynb      # 14-cell EDA with 14+ plots
 │   ├── NB02_gpu_training_v4_A100.ipynb  # A100 bfloat16 production training
-│   └── NB02_gpu_training_Trained_with_T4.ipynb  # T4 baseline
+│   ├── NB02_gpu_training_Trained_with_T4.ipynb  # T4 baseline
+│   └── NB03_production_training.ipynb  # 38-cell 4-session lifecycle (Colab A100)
 ├── src/
 │   ├── config.py                    # Central config (features, params, MLflow, drift)
 │   ├── data_generator.py            # 16M-row synthetic data with 10 quality issues

@@ -568,3 +568,126 @@ My rule now: if the GPU supports compute capability ≥ 8.0 (Ampere+), always us
 ---
 
 *Last updated: April 4, 2026 — after v4 bfloat16 success confirmed*
+
+---
+
+## 8. Docker PostgreSQL MLflow — Artifact Proxy Fix
+
+### The Problem
+
+After building the 6-service Docker stack (API, MLflow, PostgreSQL, Prometheus, Grafana, Redis), retrologging training runs from local Python client to the containerized MLflow server failed with:
+
+```
+OSError: Read-only file system: '/mlflow'
+```
+
+### Root Cause Analysis
+
+The MLflow experiment had `artifact_location=/mlflow/mlartifacts/1` — a path inside the container. When the local Python client tried to upload artifacts, it attempted to `mkdir` at that path on the **host** filesystem (not inside the container). Since `/mlflow` doesn't exist on macOS, it errored.
+
+### The Fix (3 Steps)
+
+1. **Artifact Proxy Mode:** Updated `docker-compose.yml` to add `--serve-artifacts --artifacts-destination=/mlflow/mlartifacts`. This makes MLflow server proxy artifact uploads via HTTP — clients upload to `http://localhost:5001/api/2.0/mlflow-artifacts/` and the server writes to the container volume.
+
+2. **Default Artifact Root:** Changed to `--default-artifact-root=mlflow-artifacts:/`. The `mlflow-artifacts:/` scheme tells new runs to use the proxy, not direct filesystem access.
+
+3. **Database Fix:** Existing experiment had old `artifact_location`. Direct SQL update on PostgreSQL:
+   ```sql
+   UPDATE experiments SET artifact_location='mlflow-artifacts:/' WHERE name='P053-Memory-Yield-Predictor';
+   ```
+   Plus cleanup of stale runs from failed attempts (cascading deletes on latest_metrics → metrics → params → tags → runs).
+
+### Why This Matters (Interview)
+
+*"In production, MLflow tracking and artifact storage must be decoupled. The tracking DB (PostgreSQL) should never reference container-internal filesystem paths. Our artifact proxy pattern allows any client — Colab, EC2, local — to upload artifacts via HTTP without knowing the storage backend."*
+
+---
+
+## 9. DVC (Data Version Control) Integration
+
+### Decision
+
+Large binary files (preprocessed NPZ at 2.1 GB, model weights at ~1.2 MB each) cannot go in Git. We use DVC with S3 remote.
+
+### Configuration
+
+- DVC remote: `s3://p053-mlflow-artifacts/dvc` (us-west-2)
+- Tracked files: `preprocessed_full.npz`, `preprocessed_sample.npz`, `scaler_full.pkl`, `encoders_full.pkl`
+- `.dvc` files committed to Git — they're pointers (hash + size + remote path)
+
+### Why DVC over Git LFS?
+
+1. **S3-native**: DVC stores files directly in S3 buckets we already manage. Git LFS requires a separate LFS server or GitHub's built-in (max 2 GB per file).
+2. **Experiment tracking**: DVC integrates with pipelines — you can version data + code + model together.
+3. **Cost**: S3 Standard is $0.023/GB/month. For 2.1 GB, that's ~$0.05/month.
+
+---
+
+## 10. GitHub CI/CD Pipeline
+
+### Architecture
+
+```
+Push to main → ci.yml triggers:
+  Job 1: test      → ruff lint + pytest (20/20 tests)
+  Job 2: build     → Docker image → GitHub Container Registry (ghcr.io)
+  Job 3: deploy    → kubectl apply (K8s manifests) — only on tags
+  Job 4: ecr-push  → AWS ECR push — only on tags
+```
+
+### Design Decisions
+
+- **GHCR over DockerHub**: Free for public repos, integrated with GitHub org permissions
+- **Tags-only deployment**: Prevents accidental production deploys from feature branches
+- **Ruff over flake8**: 10-100× faster linter (Rust-based), catches the same issues
+- **pytest with coverage**: CI fails if any test fails, coverage report for visibility
+
+### Manual Settings Required
+
+GitHub repo → Settings → Secrets and variables → Actions:
+- `AWS_ACCESS_KEY_ID` — for ECR push
+- `AWS_SECRET_ACCESS_KEY` — for ECR push
+- `AWS_REGION` — e.g., `us-west-2`
+
+---
+
+## 11. NB03 — 4-Session Production Training Design
+
+### Why 4 Sessions?
+
+The 4-session structure tells a complete production ML lifecycle story:
+
+| Session | Day | Concept Demonstrated | Interview Story |
+|---------|-----|---------------------|----------------|
+| 1 (Day 1) | Initial training | Training from scratch, A100 bfloat16 | "Built the first production model" |
+| 2 (Day 20) | Moderate drift | Fine-tuning, transfer learning | "Handled data drift with minimal disruption" |
+| 3 (Day 31) | Severe drift | Catastrophic forgetting | "When fine-tuning goes wrong" |
+| 4 (Day 39) | Recovery | From-scratch with accumulated knowledge | "Knowing when to start over" |
+
+### Drift Simulation in Feature Space
+
+Instead of regenerating raw data and re-running the full preprocessing pipeline for each drift session, we simulate drift directly on the preprocessed (standardized) features:
+
+```python
+# Shift drift-prone features by magnitude × std
+X_drift[:, feature_idx] += shift + noise
+```
+
+**Why this approach?**
+1. The preprocessing pipeline (`preprocess.py`) has 7 steps and was designed for the initial training data. It doesn't expose a `transform_only()` method for new data.
+2. Simulating drift in standardized space is what the drift detectors actually measure (PSI/KL/KS operate on transformed features).
+3. Much faster — no need to generate 4M raw records and run full pipeline.
+4. More controllable — we can precisely set PSI levels for each session.
+
+### Learning Rate Schedule Across Sessions
+
+```
+Day 1:  lr=1e-3  → Aggressive exploration (random init, need fast convergence)
+Day 20: lr=3e-4  → Gentle adaptation (preserve Day 1 knowledge)
+Day 31: lr=1e-4  → Minimal perturbation (already adapted, major drift)
+Day 39: lr=5e-4  → Balanced restart (informed by v2/v3 LR sensitivity)
+```
+
+The Day 39 LR (5e-4) is lower than Day 1 (1e-3) — this is NOT arbitrary. The float16 collapse experiments showed the optimal operating LR for this loss landscape is < 3e-4. Starting at 5e-4 with cosine annealing reaches that sweet spot within 5 epochs.
+
+---
