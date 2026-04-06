@@ -11,14 +11,15 @@ Runs once per simulated day. Orchestrates:
 This is the PRIMARY production DAG — runs 40 times in the simulation.
 """
 
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
+
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.operators.empty import EmptyOperator
-import json
-from pathlib import Path
+from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 PROJECT_ROOT = "/opt/airflow"
 DATA_DIR = f"{PROJECT_ROOT}/data"
@@ -147,9 +148,22 @@ skip_retrain = EmptyOperator(
 )
 
 
-# ─── TASK 8: Log completion ────────────────────────────────
+# ─── TASK 8: Log completion + S3 upload ───────────────────
 def _log_completion(**context):
     day = context["params"]["day_number"]
+
+    # Upload day's artifacts to S3 (non-blocking)
+    try:
+        import sys
+        sys.path.insert(0, "/opt/airflow")
+        from src.s3_utils import upload_simulation_artifacts
+        uploaded = upload_simulation_artifacts(day, f"{DATA_DIR}")
+        if uploaded.get("status") != "skipped":
+            n_files = len([k for k in uploaded if k != "status"])
+            print(f"[S3] Day {day}: uploaded {n_files} artifacts to S3")
+    except Exception as e:
+        print(f"[S3] Day {day}: S3 upload failed (non-fatal): {e}")
+
     print(f"[DONE] Day {day} pipeline complete")
 
 

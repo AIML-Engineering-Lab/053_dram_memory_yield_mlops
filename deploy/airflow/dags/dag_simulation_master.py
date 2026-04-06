@@ -8,10 +8,11 @@ This is the "director" DAG:
     - Loops through days 1-40
     - Triggers p053_daily_yield_pipeline for each day
     - Waits for completion before moving to next day
+    - Uses VARIABLE daily volumes (not fixed 5M)
     - Logs scenario metadata per day
+    - Auto-stops EC2 after Phase 3 completion
 
 Run this ONCE to execute the entire simulation.
-Total runtime: ~2 hours (3 min per simulated day × 40 days)
 
 Usage:
     1. Start the big data stack: docker compose up -d
@@ -20,16 +21,27 @@ Usage:
     4. Watch the 40-day simulation unfold
 
 OR run from CLI:
-    airflow dags trigger p053_simulation_master
+    airflow dags trigger p053_simulation_master --conf '{"scale": "phase2"}'
 """
 
+import os
+import sys
 from datetime import datetime, timedelta
+
 from airflow import DAG
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
+sys.path.insert(0, "/opt/airflow")
 
 TOTAL_DAYS = 40
-ROWS_PER_DAY = 5_000_000
+
+# Import variable volume function
+try:
+    from src.streaming_data_generator import get_daily_volume
+    HAS_VOLUME_FUNC = True
+except ImportError:
+    HAS_VOLUME_FUNC = False
 
 # Scenario descriptions for logging
 SCENARIOS = {
@@ -70,10 +82,21 @@ dag = DAG(
 
 def _log_day_start(day, **context):
     scenario = SCENARIOS.get(day, "unknown")
+    # Get variable volume based on scale
+    scale = context.get("dag_run", {}).conf.get("scale", "phase2") if hasattr(context.get("dag_run", {}), "conf") else "phase2"
+
+    if HAS_VOLUME_FUNC:
+        rows = get_daily_volume(day, scale)
+    else:
+        rows = 5_000_000  # Fallback
+
     print(f"\n{'='*60}")
     print(f"SIMULATION DAY {day:>2}/40 — {scenario.upper()}")
-    print(f"  Rows: {ROWS_PER_DAY:,}")
+    print(f"  Rows:  {rows:,} (scale={scale})")
     print(f"{'='*60}")
+
+    # Push rows to XCom for trigger_daily to use
+    context["ti"].xcom_push(key=f"day_{day}_rows", value=rows)
 
 
 # Build tasks dynamically for all 40 days
@@ -88,11 +111,19 @@ for day in range(1, TOTAL_DAYS + 1):
         dag=dag,
     )
 
-    # Trigger daily pipeline
+    # Calculate variable rows for this day
+    # Note: In Airflow, conf can override scale at trigger time
+    if HAS_VOLUME_FUNC:
+        # Use phase2 as default for DAG definition; runtime can override
+        day_rows = get_daily_volume(day, os.environ.get("SIMULATION_SCALE", "phase2"))
+    else:
+        day_rows = 5_000_000
+
+    # Trigger daily pipeline with variable row count
     trigger_daily = TriggerDagRunOperator(
         task_id=f"trigger_day_{day:02d}",
         trigger_dag_id="p053_daily_yield_pipeline",
-        conf={"day_number": day, "n_rows": ROWS_PER_DAY},
+        conf={"day_number": day, "n_rows": day_rows},
         wait_for_completion=True,
         poke_interval=30,
         allowed_states=["success"],
@@ -108,15 +139,37 @@ for day in range(1, TOTAL_DAYS + 1):
     prev_task = trigger_daily
 
 
-# Final summary
+# Final summary + auto-stop
 def _simulation_complete(**context):
+    scale = os.environ.get("SIMULATION_SCALE", "phase2")
+
+    # Calculate total rows (variable volumes)
+    total_rows = 0
+    for d in range(1, TOTAL_DAYS + 1):
+        if HAS_VOLUME_FUNC:
+            total_rows += get_daily_volume(d, scale)
+        else:
+            total_rows += 5_000_000
+
     print(f"\n{'='*60}")
-    print(f"40-DAY SIMULATION COMPLETE!")
-    print(f"  Total rows generated: {TOTAL_DAYS * ROWS_PER_DAY:,}")
-    print(f"  Retrain events: Day 31")
-    print(f"  Bad deploy: Day 39 → rollback")
-    print(f"  Recovery: Day 40")
+    print(f"40-DAY SIMULATION COMPLETE! (scale={scale})")
+    print(f"  Total rows generated: {total_rows:,}")
+    print(f"  Estimated data size:  {total_rows * 300 / 1e9:.1f} GB (Parquet)")
+    print("  Retrain events:       Day 31+")
+    print("  Bad deploy scenario:  Day 39 → rollback")
+    print("  Recovery:             Day 40")
     print(f"{'='*60}")
+
+    # Auto-stop EC2 after Phase 3
+    try:
+        from src.ec2_auto_stop import simulation_complete_handler
+        result = simulation_complete_handler(phase=scale)
+        print(f"Auto-stop result: {result}")
+    except ImportError:
+        print("ec2_auto_stop not available (local mode)")
+    except Exception as e:
+        print(f"Auto-stop failed (non-fatal): {e}")
+        print("MANUAL ACTION: Stop the EC2 instance if Phase 3 is complete!")
 
 
 final_log = PythonOperator(

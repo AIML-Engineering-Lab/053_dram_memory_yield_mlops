@@ -163,6 +163,19 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
         if day == 40:
             day_record["events"].append("SYSTEM_RECOVERED")
 
+        # ── S3 Upload (non-blocking) ──
+        try:
+            from src.s3_utils import upload_simulation_artifacts
+            s3_result = upload_simulation_artifacts(
+                day, str(DATA_DIR), skip_parquet=(rows_per_day < 1_000_000),
+            )
+            if s3_result.get("status") != "skipped":
+                n_uploaded = len([k for k in s3_result if k != "status"])
+                day_record["s3_uploaded"] = n_uploaded
+                day_record["events"].append(f"s3_uploaded_{n_uploaded}_files")
+        except Exception as e:
+            day_record["events"].append(f"s3_skip: {e}")
+
         day_elapsed = time.time() - day_t0
         day_record["elapsed_sec"] = round(day_elapsed, 1)
         timeline["days"].append(day_record)
@@ -199,49 +212,107 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
 
 def _log_retrain_to_mlflow(day: int, model_version: str,
                            drift_result: dict, days_since_retrain: int):
-    """Log a simulated retrain event as an MLflow run.
+    """Execute REAL GPU training and log to MLflow.
 
-    In production, this would trigger actual GPU training (via CI/CD or Airflow).
-    Here we log the retrain decision metadata so MLflow shows the full lifecycle.
+    Replaces the old stub that only logged metadata.
+    Now calls train.py which runs actual PyTorch training on GPU
+    with full MLflow experiment tracking.
+
+    Falls back to metadata-only logging if train.py fails or
+    preprocessed data is not available (e.g., fast mode).
     """
+    import subprocess
+
     sim_start = datetime.strptime(SIMULATION["start_date"], "%Y-%m-%d")
     retrain_date = (sim_start + timedelta(days=day - 1)).strftime("%Y-%m-%d")
 
-    with mlflow.start_run(run_name=f"retrain-day{day}-{model_version}", tags={
-        **MLFLOW["default_tags"],
-        "run_type": "simulation_retrain",
-        "simulation_day": str(day),
-        "retrain_date": retrain_date,
-        "model_version": model_version,
-        "trigger": "drift_detected",
-    }) as run:
-        mlflow.log_params({
-            "simulation.day": day,
-            "simulation.date": retrain_date,
-            "simulation.days_since_last_retrain": days_since_retrain,
-            "drift.features_critical": drift_result["features_critical"],
-            "drift.features_warning": drift_result["features_warning"],
-        })
+    run_name = f"retrain-day{day:02d}-{model_version}"
 
-        # Log per-feature PSI values
-        for feat, psi_val in drift_result.get("feature_psi", {}).items():
-            mlflow.log_metric(f"psi.{feat}", psi_val)
+    # Attempt REAL GPU training
+    data_path = PROJECT_ROOT / "data" / "preprocessed_full.npz"
+    training_succeeded = False
 
-        # Log drift report as artifact
-        report_path = DRIFT_REPORT_DIR / f"drift_day_{day:02d}.json"
-        if report_path.exists():
-            mlflow.log_artifact(str(report_path), "drift_reports")
+    if data_path.exists():
+        cmd = [
+            sys.executable, "-m", "src.train",
+            "--full",
+            "--batch-size", "4096",
+            "--run-name", run_name,
+            "--context", "simulation-retrain",
+        ]
+        print(f"    [RETRAIN] Launching GPU training: {' '.join(cmd)}")
 
-        mlflow.set_tag("mlflow.note.content",
-            f"Retrain triggered on Day {day} ({retrain_date}). "
-            f"{drift_result['features_critical']} features exceeded PSI>0.2 critical threshold. "
-            f"Days since last retrain: {days_since_retrain}. "
-            f"New model version: {model_version}. "
-            f"In production, this would trigger an Airflow DAG → Colab A100 training → "
-            f"MLflow model registration → canary deployment."
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(PROJECT_ROOT),
+                timeout=7200,
+            )
+            if result.returncode == 0:
+                training_succeeded = True
+                # Read benchmark for metrics
+                import glob as _glob
+                benchmark_files = sorted(
+                    _glob.glob(str(PROJECT_ROOT / "data" / "benchmark_*.json")),
+                    key=lambda f: Path(f).stat().st_mtime,
+                    reverse=True,
+                )
+                if benchmark_files:
+                    with open(benchmark_files[0]) as f:
+                        benchmark = json.load(f)
+                    print(f"    [RETRAIN] GPU training complete: "
+                          f"AUC-PR={benchmark['results']['val']['auc_pr']:.4f}, "
+                          f"GPU={benchmark['gpu_name']}, "
+                          f"Time={benchmark['total_train_time_min']:.1f}min")
+                    print(f"    [RETRAIN] MLflow run: {benchmark['mlflow_run_id']}")
+            else:
+                print(f"    [RETRAIN] GPU training failed (exit {result.returncode}), "
+                      f"falling back to metadata logging")
+                print(f"    [RETRAIN] STDERR: {result.stderr[-500:]}")
+        except subprocess.TimeoutExpired:
+            print("    [RETRAIN] Training timed out after 2h, falling back to metadata logging")
+        except Exception as e:
+            print(f"    [RETRAIN] Training error: {e}, falling back to metadata logging")
+    else:
+        print(f"    [RETRAIN] No preprocessed data at {data_path}, logging metadata only")
 
-    print(f"    MLflow: logged retrain event {run.info.run_id[:8]}...")
+    # Fallback: log metadata to MLflow if training didn't run
+    if not training_succeeded:
+        with mlflow.start_run(run_name=run_name, tags={
+            **MLFLOW["default_tags"],
+            "run_type": "simulation_retrain_metadata",
+            "simulation_day": str(day),
+            "retrain_date": retrain_date,
+            "model_version": model_version,
+            "trigger": "drift_detected",
+            "training_executed": "false",
+        }) as run:
+            mlflow.log_params({
+                "simulation.day": day,
+                "simulation.date": retrain_date,
+                "simulation.days_since_last_retrain": days_since_retrain,
+                "drift.features_critical": drift_result["features_critical"],
+                "drift.features_warning": drift_result["features_warning"],
+            })
+
+            for feat, psi_val in drift_result.get("feature_psi", {}).items():
+                mlflow.log_metric(f"psi.{feat}", psi_val)
+
+            report_path = DRIFT_REPORT_DIR / f"drift_day_{day:02d}.json"
+            if report_path.exists():
+                mlflow.log_artifact(str(report_path), "drift_reports")
+
+            mlflow.set_tag("mlflow.note.content",
+                f"Retrain triggered on Day {day} ({retrain_date}). "
+                f"{drift_result['features_critical']} features exceeded PSI>0.2. "
+                f"Days since last retrain: {days_since_retrain}. "
+                f"Model: {model_version}. "
+                f"Training data not available — metadata logged only."
+            )
+
+        print(f"    MLflow: logged retrain metadata {run.info.run_id[:8]}...")
 
 
 def _standalone_drift_check(day: int) -> dict:
