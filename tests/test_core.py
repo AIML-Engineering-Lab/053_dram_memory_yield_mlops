@@ -4,10 +4,10 @@ P053 — Unit Tests
 Tests for focal loss, preprocessing, inference, and drift detection.
 """
 
-import sys
 import os
+import sys
+
 import numpy as np
-import pytest
 
 # Ensure src/ is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -41,7 +41,8 @@ class TestFocalLoss:
     def test_numpy_pytorch_match(self):
         """NumPy and PyTorch implementations should produce same values."""
         import torch
-        from focal_loss import focal_loss_numpy, FocalLoss
+
+        from focal_loss import FocalLoss, focal_loss_numpy
 
         np.random.seed(42)
         y_true = np.random.randint(0, 2, 100).astype(np.float32)
@@ -77,7 +78,7 @@ class TestConfig:
 
     def test_feature_count_consistency(self):
         """N_TABULAR + N_SPATIAL should match ALL_FEATURE_NAMES."""
-        from config import N_TABULAR, N_SPATIAL, ALL_FEATURE_NAMES
+        from config import ALL_FEATURE_NAMES, N_SPATIAL, N_TABULAR
         assert N_TABULAR + N_SPATIAL == len(ALL_FEATURE_NAMES), (
             f"Feature count mismatch: {N_TABULAR}+{N_SPATIAL} != {len(ALL_FEATURE_NAMES)}"
         )
@@ -105,8 +106,9 @@ class TestModel:
     def test_forward_pass(self):
         """Model should produce (batch,) logits from correct input shapes."""
         import torch
-        from model import HybridTransformerCNN
+
         from config import MODEL_PARAMS
+        from model import HybridTransformerCNN
 
         model = HybridTransformerCNN(**MODEL_PARAMS)
         model.eval()
@@ -122,8 +124,8 @@ class TestModel:
 
     def test_parameter_count(self):
         """Model should have ~317K parameters."""
-        from model import HybridTransformerCNN
         from config import MODEL_PARAMS
+        from model import HybridTransformerCNN
 
         model = HybridTransformerCNN(**MODEL_PARAMS)
         n_params = sum(p.numel() for p in model.parameters())
@@ -132,8 +134,9 @@ class TestModel:
     def test_gradient_flow(self):
         """Gradients should flow through active branches (transformer + CNN + fusion)."""
         import torch
-        from model import HybridTransformerCNN
+
         from config import MODEL_PARAMS
+        from model import HybridTransformerCNN
 
         model = HybridTransformerCNN(**MODEL_PARAMS)
         x_tab = torch.randn(2, MODEL_PARAMS["n_tabular"])
@@ -245,8 +248,9 @@ class TestRetrainTrigger:
 
     def test_no_retrain_fresh_model(self):
         """Should not retrain if model was recently retrained."""
-        from retrain_trigger import RetrainTrigger
         from datetime import datetime
+
+        from retrain_trigger import RetrainTrigger
 
         trigger = RetrainTrigger(max_staleness_days=30)
         drift_report = {"summary": {"n_features_critical": 5, "top_drifted": []}}

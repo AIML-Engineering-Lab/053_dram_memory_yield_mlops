@@ -28,11 +28,11 @@ Usage:
     python -m src.pandas_vs_spark_benchmark --max-days 20
 """
 
-import time
-import json
-import gc
-import traceback
 import argparse
+import gc
+import json
+import time
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -243,7 +243,7 @@ def run_benchmark(max_days: int = 40) -> dict:
     test_sizes = [s for s in [1, 3, 5, 10, 20, 40] if s <= max_available]
 
     print(f"\n{'='*70}")
-    print(f"P053 BENCHMARK — pandas vs PySpark")
+    print("P053 BENCHMARK — pandas vs PySpark")
     print(f"Available days: {len(available_days)} | Testing: {test_sizes}")
     print(f"{'='*70}\n")
 
@@ -254,7 +254,7 @@ def run_benchmark(max_days: int = 40) -> dict:
         print(f"\n--- {n_days} day(s) = ~{n_days * 5}M rows ---")
 
         # pandas
-        print(f"  pandas...", end=" ", flush=True)
+        print("  pandas...", end=" ", flush=True)
         pd_result = benchmark_pandas(day_list)
         if pd_result["status"] == "success":
             print(f"✓ {pd_result['total_sec']:.1f}s | {pd_result.get('peak_memory_gb', '?')} GB RAM")
@@ -264,7 +264,7 @@ def run_benchmark(max_days: int = 40) -> dict:
             print(f"✗ {pd_result.get('error', 'unknown error')}")
 
         # Spark
-        print(f"  spark ...", end=" ", flush=True)
+        print("  spark ...", end=" ", flush=True)
         sp_result = benchmark_spark(day_list)
         if sp_result["status"] == "success":
             print(f"✓ {sp_result['total_sec']:.1f}s")
@@ -285,7 +285,7 @@ def run_benchmark(max_days: int = 40) -> dict:
             for remaining_n in test_sizes[test_sizes.index(n_days) + 1:]:
                 remaining_days = available_days[:remaining_n]
                 print(f"\n--- {remaining_n} day(s) = ~{remaining_n * 5}M rows ---")
-                print(f"  pandas... SKIPPED (already OOM'd)")
+                print("  pandas... SKIPPED (already OOM'd)")
                 sp_result = benchmark_spark(remaining_days)
                 if sp_result["status"] == "success":
                     print(f"  spark ... ✓ {sp_result['total_sec']:.1f}s")

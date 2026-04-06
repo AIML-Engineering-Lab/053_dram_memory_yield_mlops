@@ -25,16 +25,29 @@ import torch
 
 try:
     from src.config import (
-        ARTIFACTS_DIR, MODELS_DIR, MODEL_PARAMS,
-        NUMERIC_FEATURES, CATEGORICAL_FEATURES, SPATIAL_FEATURES,
-        ENGINEERED_FEATURES, LOG_FEATURES, N_TABULAR, N_SPATIAL,
+        ARTIFACTS_DIR,
+        CATEGORICAL_FEATURES,
+        ENGINEERED_FEATURES,
+        LOG_FEATURES,
+        MODEL_PARAMS,
+        MODELS_DIR,
+        N_SPATIAL,
+        N_TABULAR,
+        NUMERIC_FEATURES,
+        SPATIAL_FEATURES,
     )
     from src.model import HybridTransformerCNN
 except ImportError:
     from config import (
-        ARTIFACTS_DIR, MODELS_DIR, MODEL_PARAMS,
-        NUMERIC_FEATURES, CATEGORICAL_FEATURES, SPATIAL_FEATURES,
-        ENGINEERED_FEATURES, LOG_FEATURES, N_TABULAR, N_SPATIAL,
+        ARTIFACTS_DIR,
+        CATEGORICAL_FEATURES,
+        LOG_FEATURES,
+        MODEL_PARAMS,
+        MODELS_DIR,
+        N_SPATIAL,
+        N_TABULAR,
+        NUMERIC_FEATURES,
+        SPATIAL_FEATURES,
     )
     from model import HybridTransformerCNN
 

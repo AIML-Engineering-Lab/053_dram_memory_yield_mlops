@@ -31,7 +31,6 @@ import json
 import logging
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -186,9 +185,9 @@ class RetrainPipeline:
         Returns:
             dict with training results, comparison, and promotion decision
         """
-        from model import HybridTransformerCNN, create_dataloaders
+        from config import MODEL_PARAMS, MODELS_DIR, TRAINING
         from focal_loss import FocalLossWithLabelSmoothing
-        from config import MODEL_PARAMS, TRAINING, MODELS_DIR
+        from model import HybridTransformerCNN, create_dataloaders
 
         t0 = time.time()
         logger.info("Starting retraining: %d train, %d val, %d test",
@@ -342,7 +341,8 @@ class RetrainPipeline:
 
 if __name__ == "__main__":
     import argparse
-    from config import DATA_DIR, ARTIFACTS_DIR
+
+    from config import ARTIFACTS_DIR, DATA_DIR
 
     parser = argparse.ArgumentParser(description="P053 Retrain Trigger")
     parser.add_argument("--drift-report", default=str(ARTIFACTS_DIR / "drift_report.json"))
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     )
 
     print(f"\n{'='*60}")
-    print(f"RETRAIN DECISION")
+    print("RETRAIN DECISION")
     print(f"{'='*60}")
     print(f"Should retrain: {decision['should_retrain']}")
     print(f"Reasoning:      {decision['reasoning']}")

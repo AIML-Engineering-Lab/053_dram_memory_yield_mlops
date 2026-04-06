@@ -27,26 +27,29 @@ Usage:
 import argparse
 import json
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 from sklearn.metrics import (
-    average_precision_score, f1_score, precision_score, recall_score,
-    confusion_matrix, precision_recall_curve, roc_auc_score,
+    average_precision_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
 
-from src.config import ROOT, DATA_DIR, ASSETS_DIR, ARTIFACTS_DIR, MODEL_PARAMS, TRAINING
-from src.model import HybridTransformerCNN, create_dataloaders, find_best_threshold
+from src.config import ARTIFACTS_DIR, DATA_DIR, MODEL_PARAMS, TRAINING
 from src.focal_loss import FocalLossWithLabelSmoothing
 from src.mlflow_utils import (
-    init_mlflow, start_training_run, log_epoch_metrics,
-    log_evaluation_results, log_model_artifact, log_plot_artifact,
+    init_mlflow,
+    log_epoch_metrics,
+    log_evaluation_results,
+    log_model_artifact,
     log_training_summary,
+    start_training_run,
 )
-
+from src.model import HybridTransformerCNN, create_dataloaders, find_best_threshold
 
 # ═══════════════════════════════════════════════════════════════
 # Hardware Detection

@@ -30,25 +30,30 @@ Usage:
     python -m src.streaming_data_generator --day 1 --end-day 40 --output-dir data/production
 """
 
+import argparse
+import json
+import time
+
+# Reuse the exact same physics engine as data_generator.py
+from datetime import datetime, timedelta
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pathlib import Path
-import time
-import argparse
-import json
-import sys
 
-# Reuse the exact same physics engine as data_generator.py
-from datetime import datetime, timedelta
-
+from src.config import DATA_DIR, SIMULATION
 from src.data_generator import (
-    wafer_center_distance, inject_temporal_drift, inject_spatial_correlation,
-    WAFER_DIAMETER_MM, DIE_PITCH_X_MM, DIE_PITCH_Y_MM, MAX_DIE_X, MAX_DIE_Y,
-    TESTER_IDS, PROBE_CARD_IDS, CHAMBER_IDS, RECIPE_VERSIONS,
+    CHAMBER_IDS,
+    MAX_DIE_X,
+    MAX_DIE_Y,
+    PROBE_CARD_IDS,
+    RECIPE_VERSIONS,
+    TESTER_IDS,
+    inject_spatial_correlation,
+    wafer_center_distance,
 )
-from src.config import ROOT, DATA_DIR, SIMULATION
 
 PRODUCTION_DIR = DATA_DIR / "production"
 PRODUCTION_DIR.mkdir(parents=True, exist_ok=True)
@@ -507,7 +512,7 @@ def generate_all_days(start_day: int = 1, end_day: int = 40,
         json.dump(summary, f, indent=2)
 
     print(f"\n{'='*70}")
-    print(f"GENERATION COMPLETE")
+    print("GENERATION COMPLETE")
     print(f"  Days: {start_day}-{end_day} ({end_day - start_day + 1} days)")
     print(f"  Rows: {summary['total_rows']:,}")
     print(f"  Size: {summary['total_size_mb']:,.0f} MB Parquet")

@@ -26,19 +26,19 @@ Usage:
 
 import argparse
 import json
-import time
 import sys
-from pathlib import Path
+import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import mlflow
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.streaming_data_generator import generate_day, get_drift_config, PRODUCTION_DIR
-from src.config import DATA_DIR, SIMULATION, MLFLOW
+from src.config import DATA_DIR, MLFLOW, SIMULATION
 from src.mlflow_utils import init_mlflow
+from src.streaming_data_generator import PRODUCTION_DIR, generate_day, get_drift_config
 
 TIMELINE_PATH = DATA_DIR / "simulation_timeline.json"
 DRIFT_REPORT_DIR = DATA_DIR / "drift_reports"
@@ -76,7 +76,7 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
     model_version = "v1_original"
 
     print(f"\n{'='*70}")
-    print(f"P053 — 40-DAY PRODUCTION SIMULATION")
+    print("P053 — 40-DAY PRODUCTION SIMULATION")
     print(f"{'='*70}")
     print(f"  Days:     {start_day}-{end_day}")
     print(f"  Timeline: {sim_start.strftime('%b %d, %Y')} → {sim_end.strftime('%b %d, %Y')}")
@@ -185,7 +185,7 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
     total_size_mb = sum(d["parquet_mb"] for d in timeline["days"])
 
     print(f"\n{'='*70}")
-    print(f"SIMULATION COMPLETE")
+    print("SIMULATION COMPLETE")
     print(f"  Days:          {end_day - start_day + 1}")
     print(f"  Total rows:    {total_rows:,}")
     print(f"  Total Parquet: {total_size_mb:,.0f} MB")
@@ -249,8 +249,8 @@ def _standalone_drift_check(day: int) -> dict:
     Lightweight drift check using pandas (no Spark needed).
     Computes PSI for key features against day 1 reference.
     """
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     ref_path = PRODUCTION_DIR / "day_01.parquet"
     analysis_path = PRODUCTION_DIR / f"day_{day:02d}.parquet"

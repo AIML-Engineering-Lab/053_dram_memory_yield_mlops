@@ -19,15 +19,12 @@ Usage:
     python -m src.kafka_consumer --batch-size 50000 --max-messages 5000000
 """
 
-import json
-import time
 import argparse
+import json
 import signal
-import sys
+import time
 from pathlib import Path
-from datetime import datetime
 
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -134,7 +131,7 @@ def consume_loop(consumer, batch_size: int = 50_000,
 
     print(f"[INFO] Consuming from '{TOPIC}' | Batch size: {batch_size:,}")
     print(f"[INFO] Landing zone: {LANDING_DIR}")
-    print(f"[INFO] Press Ctrl+C for graceful shutdown\n")
+    print("[INFO] Press Ctrl+C for graceful shutdown\n")
 
     while not _shutdown:
         # Backpressure: check landing zone size
@@ -218,7 +215,7 @@ def consume_loop(consumer, batch_size: int = 50_000,
     }
 
     print(f"\n{'='*60}")
-    print(f"CONSUMER STATS")
+    print("CONSUMER STATS")
     print(f"  Messages: {total_consumed:,}")
     print(f"  Batches:  {batch_num}")
     print(f"  Data:     {total_bytes/1e9:.2f} GB")

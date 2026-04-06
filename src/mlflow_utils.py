@@ -22,14 +22,13 @@ MLflow Concepts Used:
 """
 
 import json
-import time
 from pathlib import Path
 from typing import Any, Optional
 
 import mlflow
 from mlflow.tracking import MlflowClient
 
-from src.config import MLFLOW, TRAINING, MODEL_PARAMS, DRIFT, BUSINESS
+from src.config import BUSINESS, DRIFT, MLFLOW, MODEL_PARAMS, TRAINING
 
 
 def init_mlflow(experiment_name: Optional[str] = None) -> str:

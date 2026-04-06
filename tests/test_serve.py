@@ -4,8 +4,9 @@ P053 — FastAPI Endpoint Tests
 Tests for API endpoints using httpx async test client.
 """
 
-import sys
 import os
+import sys
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -54,7 +55,7 @@ class TestServeImportable:
         from serve import app  # noqa: F401
 
     def test_import_schemas(self):
-        from serve import WaferDieInput, PredictionResponse  # noqa: F401
+        from serve import PredictionResponse, WaferDieInput  # noqa: F401
 
     def test_wafer_die_input_validation(self, sample_die_input):
         """Pydantic model should accept valid input."""

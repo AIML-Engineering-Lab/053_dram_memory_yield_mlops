@@ -9,14 +9,15 @@ Generates 4 publication-quality plots showing real-world data issues:
 
 import sys
 from pathlib import Path
+
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from matplotlib.patches import Circle
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Circle
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -63,7 +64,7 @@ def load_sample():
 # ═══════════════════════════════════════════════════════════════════
 def plot_class_distribution(df):
     """Bar chart showing extreme class imbalance + annotation."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), 
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5),
                                      gridspec_kw={"width_ratios": [2, 1]})
     fig.patch.set_facecolor("white")
 
@@ -318,7 +319,7 @@ def plot_spatial_wafer_map(df):
     ax2.bar(
         bin_stats["bin_mid"], bin_stats["fail_rate"] * 100,
         width=0.045,
-        color=[RED if m > 0.7 else AMBER if m > 0.5 else BLUE 
+        color=[RED if m > 0.7 else AMBER if m > 0.5 else BLUE
                for m in bin_stats["bin_mid"]],
         edgecolor="white",
         linewidth=1,

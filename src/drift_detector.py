@@ -28,7 +28,6 @@ Usage:
 
 import json
 import logging
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -314,7 +313,8 @@ def simulate_drift(X_reference: np.ndarray, drift_features: list[int],
 
 if __name__ == "__main__":
     import argparse
-    from config import DATA_DIR, ARTIFACTS_DIR, ALL_FEATURE_NAMES, N_TABULAR, N_SPATIAL
+
+    from config import ARTIFACTS_DIR, DATA_DIR
 
     parser = argparse.ArgumentParser(description="P053 Drift Detection")
     parser.add_argument("--reference", default=str(DATA_DIR / "preprocessed_full.npz"))
@@ -360,14 +360,14 @@ if __name__ == "__main__":
     # Print summary
     summary = results["summary"]
     print(f"\n{'='*60}")
-    print(f"DRIFT DETECTION REPORT")
+    print("DRIFT DETECTION REPORT")
     print(f"{'='*60}")
     print(f"Status:    {summary['overall_status'].upper()}")
     print(f"OK:        {summary['n_features_ok']} features")
     print(f"Warning:   {summary['n_features_warning']} features")
     print(f"Critical:  {summary['n_features_critical']} features")
     print(f"Retrain:   {'YES' if summary['should_retrain'] else 'No'}")
-    print(f"\nTop drifted features:")
+    print("\nTop drifted features:")
     for name, psi in summary["top_drifted"]:
         status = results["features"][name]["status"]
         print(f"  {name:35s} PSI={psi:.4f}  [{status}]")

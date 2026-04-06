@@ -25,13 +25,10 @@ Usage:
 
 import argparse
 import time
-import sys
 from pathlib import Path
 
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import DoubleType, IntegerType, StringType
-from pyspark.sql.window import Window
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURATION — Must match config.py exactly
@@ -195,7 +192,7 @@ def add_engineered_features(df: DataFrame) -> DataFrame:
                     F.col("rh_susceptibility") * (F.lit(250.0) - F.col("disturb_margin_mv")) / F.lit(250.0))
     )
 
-    print(f"  FEATURE ENG: 7 engineered features added")
+    print("  FEATURE ENG: 7 engineered features added")
     return df
 
 
@@ -387,7 +384,7 @@ def run_etl(start_day: int, end_day: int, source: str = "production",
     }
 
     print(f"\n{'='*70}")
-    print(f"ETL COMPLETE")
+    print("ETL COMPLETE")
     print(f"  Rows:       {summary['total_rows']:>12,}")
     print(f"  Fail rate:  {summary['fail_rate']:.4f}")
     print(f"  Ingest:     {ingest_time:>6.1f}s")

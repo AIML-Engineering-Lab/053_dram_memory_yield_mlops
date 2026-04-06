@@ -36,21 +36,23 @@ import os
 import sys
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
 
-import numpy as np
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_client import (
-    Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST,
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
 )
 from pydantic import BaseModel, Field, field_validator
 
 # Ensure src/ is importable
 sys.path.insert(0, os.path.dirname(__file__))
 
-from config import SERVING, NUMERIC_FEATURES, CATEGORICAL_FEATURES, SPATIAL_FEATURES
+from config import SERVING
 
 # ═══════════════════════════════════════════════════════════════
 # Logging
@@ -324,7 +326,7 @@ async def metrics():
 @app.get("/model/info", response_model=ModelInfoResponse)
 async def model_info():
     """Model metadata and configuration."""
-    from config import MODEL_PARAMS, N_TABULAR, N_SPATIAL
+    from config import N_SPATIAL, N_TABULAR
     n_params = sum(p.numel() for p in predictor.model.parameters()) if predictor else 0
     return ModelInfoResponse(
         model_version=SERVING["model_version"],

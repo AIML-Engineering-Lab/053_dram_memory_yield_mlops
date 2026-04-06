@@ -19,11 +19,9 @@ Usage:
     python -m src.kafka_producer --day 5 --batch-size 10000
 """
 
+import argparse
 import json
 import time
-import argparse
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd

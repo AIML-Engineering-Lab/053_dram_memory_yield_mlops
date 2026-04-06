@@ -24,9 +24,9 @@ import json
 import time
 from pathlib import Path
 
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
 import numpy as np
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRODUCTION_DIR = str(PROJECT_ROOT / "data" / "production")
@@ -250,7 +250,7 @@ def run_drift_scan(ref_start_day: int, ref_end_day: int,
 
     elapsed = time.time() - t0
     print(f"\n{'='*70}")
-    print(f"DRIFT SCAN COMPLETE")
+    print("DRIFT SCAN COMPLETE")
     print(f"  Days scanned: {len(all_reports)}")
     print(f"  Retrain triggers: {retrain_days if retrain_days else 'None'}")
     print(f"  Reports saved: {DRIFT_REPORT_DIR}")

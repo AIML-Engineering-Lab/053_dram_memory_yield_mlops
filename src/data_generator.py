@@ -17,12 +17,13 @@ issues that make this NOT a textbook clean dataset:
 10. Spatial patterns   — Edge die fail 3× more than center die
 """
 
-import numpy as np
-import pandas as pd
-from pathlib import Path
+import json
 import time
 import warnings
-import json
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
 
 warnings.filterwarnings("ignore")
 
@@ -461,7 +462,7 @@ def generate_all_splits():
     # Save stats
     with open(DATA / "data_generation_stats.json", "w") as f:
         json.dump(stats, f, indent=2)
-    print(f"\n  Stats saved to data_generation_stats.json")
+    print("\n  Stats saved to data_generation_stats.json")
     print(f"  Total rows: {sum(s['rows'] for s in stats.values()):,}")
     total_mb = sum(s['file_size_mb'] for s in stats.values())
     print(f"  Total size: {total_mb:.1f} MB ({total_mb/1024:.2f} GB)")

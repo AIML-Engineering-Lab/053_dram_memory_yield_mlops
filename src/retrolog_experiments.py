@@ -10,10 +10,9 @@ Usage:
     python -m src.retrolog_experiments
 """
 
-from pathlib import Path
 
-from src.config import ROOT, DATA_DIR, ASSETS_DIR, ARTIFACTS_DIR
-from src.mlflow_utils import init_mlflow, retrolog_completed_run, register_model
+from src.config import ARTIFACTS_DIR, ASSETS_DIR, DATA_DIR, ROOT
+from src.mlflow_utils import init_mlflow, retrolog_completed_run
 
 
 def main():

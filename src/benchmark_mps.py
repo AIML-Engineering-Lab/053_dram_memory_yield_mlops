@@ -13,20 +13,27 @@ Output: data/benchmark_mps.json — used in report comparison table.
 
 import json
 import time
-from pathlib import Path
 
 import numpy as np
-import torch
-import torch.nn as nn
 import psutil
+import torch
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 
 # Import model components
 from model import (
-    HybridTransformerCNN, FocalLossWithLabelSmoothing,
-    create_dataloaders, evaluate, find_best_threshold,
-    DEVICE, DATA, ASSETS, SRC,
+    DATA,
+    DEVICE,
+    FocalLossWithLabelSmoothing,
+    HybridTransformerCNN,
+    create_dataloaders,
+    evaluate,
+    find_best_threshold,
 )
-from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score
 
 
 def benchmark_mps():
@@ -35,8 +42,8 @@ def benchmark_mps():
     print("P053 — MPS LOCAL BENCHMARK (Apple Silicon M-series)")
     print("=" * 70)
     print(f"  Device: {DEVICE}")
-    print(f"  Purpose: Document 'PAIN' — local hardware limitations")
-    print(f"  This trains 3 epochs to measure wall time vs cloud GPU")
+    print("  Purpose: Document 'PAIN' — local hardware limitations")
+    print("  This trains 3 epochs to measure wall time vs cloud GPU")
     print()
 
     # System info
@@ -178,8 +185,8 @@ def benchmark_mps():
         "limitation_notes": [
             f"3 epochs only = {total_time/60:.0f} min. Full 50 epochs would take ~{projected_50_epochs/3600:.1f} hours.",
             f"Throughput: ~{epoch_metrics[-1]['throughput_samples_per_s']:.0f} samples/s (A100 target: ~500K samples/s)",
-            f"No multi-GPU, no mixed precision (MPS fp16 is unreliable), limited batch size",
-            f"Memory: MPS shares unified memory with OS — OOM risk under heavy load",
+            "No multi-GPU, no mixed precision (MPS fp16 is unreliable), limited batch size",
+            "Memory: MPS shares unified memory with OS — OOM risk under heavy load",
             f"Val AUC-PR after 3 epochs: {max(m['val_auc_pr'] for m in epoch_metrics):.4f} — insufficient convergence",
         ],
     }
