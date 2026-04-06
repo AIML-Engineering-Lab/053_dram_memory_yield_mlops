@@ -407,14 +407,48 @@ Switch to **bfloat16** (available on A100 Ampere architecture, compute capabilit
 - `torch.autocast(device_type='cuda', dtype=torch.bfloat16)`
 
 ### Result
-A100 v4 with bfloat16: 50 epochs, zero instability, Val AUC-PR = 0.0536 (best ever). The 2 collapsed runs are logged in MLflow with tag `status=COLLAPSED` — deliberately preserved as debugging artifacts.
+A100 NB03 production run: **50 epochs, 201.7 min, zero instability**, Val AUC-PR = 0.0543, AUC-ROC = 0.816, best epoch 39. The 2 collapsed runs are logged in MLflow with tag `status=COLLAPSED` — deliberately preserved as debugging artifacts.
 
 ### Interview Answer
 "We hit a GradScaler death spiral on A100 — float16 worked on T4 but collapsed on A100 because the faster compute amplified gradient issues in our extreme-imbalance setting (1:160 ratio). We diagnosed it by comparing gradient norms between T4 and A100 runs, identified that the GradScaler was oscillating between scale-down events, and switched to bfloat16 which has A100-native support. We deliberately kept the failed runs in MLflow to document the debugging journey — that's real engineering, not cherry-picked results."
 
 ---
 
-## ED-032: Why MLflow over Weights & Biases / Neptune
+## ED-032: bfloat16 → numpy() Surrogate Crash (Production Colab Bug)
+
+### The Problem
+NB03 on Colab A100 crashed mid-training with two separate errors:
+1. `AttributeError: total_mem` — wrong PyTorch API attribute name
+2. `TypeError: Got unsupported ScalarType BFloat16` — numpy rejects bfloat16 tensors
+3. `UnicodeEncodeError: surrogates not allowed` — 4-byte emoji in print statements crash Jupyter's ZMQ stdout serializer
+
+### Root Cause
+**Error 1:** PyTorch GPU property is `.total_memory`, not `.total_mem`. Copy-paste from an older API.
+
+**Error 2:** Under `torch.autocast(bfloat16)`, logits remain bfloat16 after `torch.sigmoid()`. NumPy's C backend has no bfloat16 dtype — direct `.numpy()` call fails. The fix: `.float()` cast to float32 first.
+```python
+# WRONG — crashes on A100 bfloat16
+preds = torch.sigmoid(logits).cpu().numpy()
+# CORRECT
+preds = torch.sigmoid(logits).float().cpu().numpy()
+```
+
+**Error 3:** Python stores 4-byte emoji (📊 = U+1F4CA) as UTF-16 surrogate pairs `\ud83d\udcca`. Jupyter serializes stdout via ZMQ/msgpack which calls `json.encode('utf-8')` — surrogates are not valid UTF-8. Training output to the frontend was silently dropped from epoch ~6 onward; training continued correctly on the GPU.
+
+### Fix Applied
+- 9 locations across 6 files (train.py, model.py, inference.py, retrain_trigger.py, benchmark_mps.py, NB03)
+- All 4-byte emoji removed from print statements in notebooks
+- `.gitignore` updated to block `docs/commnds_execution_log.txt` (contained real AWS keys — caught by GitHub secret scanning before public exposure)
+
+### Result
+Training completed successfully: 50 epochs, 201.7 min, Val AUC-PR 0.0543. The GPU disconnect visible in the notebook UI around epoch 30 was the Jupyter display channel crashing, NOT the training kernel. The kernel continued running and all artifacts were saved to Google Drive.
+
+### Interview Answer
+"We had three production bugs surface during the first real A100 training run. The most interesting was the bfloat16→numpy crash: under autocast, CUDA tensors stay in bfloat16 dtype through sigmoid, and numpy has no bfloat16 support. We fixed 9 locations system-wide. The Jupyter emoji crash was subtler — the ZMQ serializer couldn't UTF-8 encode surrogate-pair emoji in print output, so the training appeared to hang at epoch 30 but was actually running fine on the GPU. We confirmed by checking the Drive artifacts after the session."
+
+---
+
+## ED-033: Why MLflow over Weights & Biases / Neptune
 
 ### The Problem
 Need experiment tracking, model registry, and artifact management for multi-GPU training across Colab and local environments.
