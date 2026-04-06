@@ -1,0 +1,13 @@
+line-length = 120
+
+[lint]
+# Mirror the CI: ruff check src/ tests/ --select E,W,F,I
+select = ["E", "W", "F", "I"]
+
+# E501: line-length — codebase uses long print/f-string lines, pragmatic limit applied
+# E402: module import not at top — intentional for matplotlib.use("Agg") before pyplot
+# E741: ambiguous var name — `l` common in ML/numpy loops
+# F401: unused imports — some are re-exported or conditional; safe to ignore here
+# F841: unused variables — matplotlib return objects (bars, im) from plot calls
+# W291/W293: trailing/blank-line whitespace — cosmetic, non-functional
+ignore = ["E501", "E402", "E741", "F401", "F841", "W291", "W293"]

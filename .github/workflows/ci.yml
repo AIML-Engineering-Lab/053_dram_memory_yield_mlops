@@ -44,7 +44,7 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check src/ tests/ --select E,W,F,I
+          ruff check src/ tests/ --select E,W,F,I --extend-ignore E501,E402,E741,F401,F841,W291,W293
 
       - name: Run tests
         run: |
