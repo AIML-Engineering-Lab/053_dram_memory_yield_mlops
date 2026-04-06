@@ -44,40 +44,21 @@ for d in t['days']:
         print(f'Day {d[\"day\"]}: {d[\"date\"]} — {d[\"scenario\"]}')"
 ```
 
-### Phase B: Colab A100 Training (3 sessions, ~3 hours each)
-Upload `NB03_production_training.ipynb` to Colab:
+### Phase B: Colab A100 Training — Day 1 ONLY ✅ DONE
 
-**Session 1 — Day 1 (Initial Model):**
-```python
-# On Colab A100:
-!pip install mlflow psycopg2-binary torch ...
-%env MLFLOW_TRACKING_URI=postgresql://mlflow:<pw>@<rds-host>:5432/mlflow
+> **Architecture decision (finalized):** Only the initial Day 1 model trains on Colab A100 (full 16M rows).
+> All subsequent retrains (Day 26/31/39) run **automatically on AWS EC2 via Airflow** — CPU mode on the drifted subset (~0.5-1M rows), no GPU needed.
 
-from src.train import run_training
-run_training(args=Namespace(
-    full=True, epochs=50, batch_size=4096, lr=1e-3,
-    run_name="production-day1-initial", context="day1-baseline"
-))
-```
+**Session 1 — Day 1 (Initial Model) ✅ COMPLETE:**
+- 50 epochs, bfloat16, A100-SXM4-40GB, 201.7 min
+- Val AUC-ROC=0.816, AUC-PR=0.054, F1=0.127, best epoch 39
+- Artifact: `s3://p053-mlflow-artifacts/models/day1_champion.pt`
 
-**Session 2 — Day 26-31 (Retrain v2 after drift):**
-```python
-# Same setup, but with drifted data
-run_training(args=Namespace(
-    full=True, epochs=30, batch_size=4096, lr=5e-4,  # lower LR, fewer epochs
-    run_name="retrain-day31-drift", context="day31-post-drift"
-))
-```
-
-**Session 3 — Day 39 (Bad model → rollback story):**
-```python
-# Deliberately train a bad model (wrong hyperparams)
-run_training(args=Namespace(
-    full=True, epochs=10, batch_size=256, lr=1e-2,  # bad config
-    run_name="retrain-day39-bad-deploy", context="day39-bad-model"
-))
-# Then show rollback to v2 in MLflow registry
-```
+**Sessions 2 & 3 → AWS Airflow (automatic, NOT Colab):**
+- `dag_retrain_gate.py` detects drift (PSI threshold) + staleness gate
+- Triggers `src/train.py` on EC2 instance (CPU, ~10-30 min for 30 epochs on drifted subset)
+- MLflow logs retrain run to RDS PostgreSQL automatically
+- No manual Colab intervention needed
 
 ### Phase C: AWS Cloud (1-2 month subscription)
 ```bash
