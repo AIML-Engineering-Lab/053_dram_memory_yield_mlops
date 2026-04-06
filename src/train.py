@@ -56,7 +56,7 @@ def detect_hardware():
     """Auto-detect GPU and return optimal training settings."""
     if torch.cuda.is_available():
         gpu_name = torch.cuda.get_device_name(0)
-        vram_gb = torch.cuda.get_device_properties(0).total_mem / 1e9
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
         cc = torch.cuda.get_device_capability(0)
 
         # A100/H100/A6000 (cc >= 8.0): use bfloat16, no GradScaler
@@ -142,7 +142,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
 
         if batch_idx % 10 == 0:
             with torch.no_grad():
-                preds = torch.sigmoid(logits).cpu().numpy()
+                preds = torch.sigmoid(logits).float().cpu().numpy()
                 sample_preds.extend(preds)
                 sample_labels.extend(labels.cpu().numpy())
 
@@ -191,7 +191,7 @@ def evaluate_split(model, X, y, feature_names, device, criterion, hw, batch_size
         n_batches += 1
 
     logits = torch.cat(all_logits)
-    proba = torch.sigmoid(logits).numpy()
+    proba = torch.sigmoid(logits).float().numpy()
     avg_loss = total_loss / n_batches
     auc_pr = average_precision_score(y, proba) if y.sum() > 0 else 0
 

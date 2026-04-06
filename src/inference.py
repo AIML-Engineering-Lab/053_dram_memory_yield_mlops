@@ -238,7 +238,7 @@ class YieldPredictor:
         t_spa = torch.tensor(spatial, dtype=torch.float32, device=self.device)
 
         logits = self.model(t_tab, t_spa)
-        probs = torch.sigmoid(logits).cpu().numpy()
+        probs = torch.sigmoid(logits).float().cpu().numpy()
 
         predictions = (probs >= self.threshold).astype(int)
 

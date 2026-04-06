@@ -313,7 +313,7 @@ def train_one_epoch(model, loader, criterion, optimizer, device, log_every=500):
         # Store predictions from every 10th batch for AUC-PR estimate
         if batch_idx % 10 == 0:
             with torch.no_grad():
-                preds = torch.sigmoid(logits).cpu().numpy()
+                preds = torch.sigmoid(logits).float().cpu().numpy()
                 sample_preds.extend(preds)
                 sample_labels.extend(labels.cpu().numpy())
         
@@ -350,7 +350,7 @@ def evaluate(model, loader, criterion, device):
         total_loss += loss.item()
         n_batches += 1
         
-        preds = torch.sigmoid(logits).cpu().numpy()
+        preds = torch.sigmoid(logits).float().cpu().numpy()
         all_preds.extend(preds)
         all_labels.extend(labels.cpu().numpy())
     
@@ -503,7 +503,7 @@ def train_model(use_full=False, use_focal=True, epochs=50, lr=1e-3, batch_size=5
                 logits = model(X_tab[i:i+bs], X_spa[i:i+bs])
                 all_logits.append(logits.cpu())
             logits = torch.cat(all_logits)
-            proba = torch.sigmoid(logits).numpy()
+            proba = torch.sigmoid(logits).float().numpy()
         
         split_probas[split_name] = proba
         threshold = find_best_threshold(y_split, proba) if split_name == "val" else results["val"]["threshold"]

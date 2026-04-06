@@ -107,7 +107,7 @@ def benchmark_mps():
             # Sample every 50th batch for metrics
             if batch_idx % 50 == 0:
                 with torch.no_grad():
-                    preds = torch.sigmoid(logits).cpu().numpy()
+                    preds = torch.sigmoid(logits).float().cpu().numpy()
                     sample_preds.extend(preds)
                     sample_labels.extend(labels.cpu().numpy())
 

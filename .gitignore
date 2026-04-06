@@ -47,3 +47,4 @@ simulation_*.log
 # Generator/temp scripts (should be deleted, not committed)
 _gen_*.py
 simulation_medium.log
+docs/commnds_execution_log.txt

@@ -251,7 +251,7 @@ class RetrainPipeline:
                 for batch in val_loader:
                     x_tab, x_spa, y_batch = [b.to(device) for b in batch]
                     logits = model(x_tab, x_spa)
-                    probs = torch.sigmoid(logits).cpu().numpy()
+                    probs = torch.sigmoid(logits).float().cpu().numpy()
                     val_probs.extend(probs)
                     val_labels.extend(y_batch.cpu().numpy())
 
@@ -289,7 +289,7 @@ class RetrainPipeline:
             for start in range(0, len(X_test), chunk_size):
                 end = min(start + chunk_size, len(X_test))
                 logits = model(X_test_tab[start:end], X_test_spa[start:end])
-                probs = torch.sigmoid(logits).cpu().numpy()
+                probs = torch.sigmoid(logits).float().cpu().numpy()
                 test_probs.extend(probs)
 
         test_aucpr = average_precision_score(y_test, test_probs)
