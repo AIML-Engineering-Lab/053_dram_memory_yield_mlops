@@ -56,6 +56,65 @@ PRODUCTION_DIR.mkdir(parents=True, exist_ok=True)
 ROWS_PER_DAY = 5_000_000  # 50K wafers × 100 die/wafer
 
 # ═══════════════════════════════════════════════════════════════
+# VARIABLE DAILY VOLUME — Real fabs don't produce fixed volume
+# ═══════════════════════════════════════════════════════════════
+# Production varies by: shift schedules, equipment maintenance,
+# demand fluctuations, weekend reduced ops, equipment down events.
+#
+# Phase 2 (accelerated sim): 2M-9M rows/day (0.6-2.5 GB Parquet)
+# Phase 3 (production run):  30M-350M rows/day (8-100 GB Parquet)
+
+def get_daily_volume(day: int, scale: str = "phase2") -> int:
+    """
+    Return variable row count for a given day, simulating real fab volume.
+
+    scale:
+        "phase2" — Accelerated simulation: 2M-9M rows/day (~7-27 GB raw)
+        "phase3" — Full production test: 30M-350M rows/day (~100GB-1TB raw)
+        "fixed"  — Legacy: fixed 5M rows/day
+    """
+    rng = np.random.default_rng(42_000 + day)  # Deterministic per day
+
+    if scale == "fixed":
+        return ROWS_PER_DAY
+
+    # Base pattern: weekday=full, weekend=reduced (60%)
+    is_weekend = (day % 7) in (6, 0)  # Day 6,7,13,14... are weekends
+    weekend_factor = 0.6 if is_weekend else 1.0
+
+    # Equipment maintenance windows (random days lose 30-50% capacity)
+    maintenance_factor = 1.0
+    if day in (4, 12, 23, 34):  # Scheduled maintenance days
+        maintenance_factor = 0.5 + rng.uniform(0, 0.2)
+    elif day in (17, 28):  # Unplanned equipment down
+        maintenance_factor = 0.3 + rng.uniform(0, 0.2)
+
+    # Demand ramp: early days lower, mid-month peak, end-month push
+    if day <= 5:
+        demand_factor = 0.7 + 0.06 * day  # Ramp up: 0.76 → 1.0
+    elif day <= 30:
+        demand_factor = 1.0 + 0.15 * np.sin(2 * np.pi * day / 15)  # Sinusoidal variation
+    else:
+        demand_factor = 1.1 + 0.1 * rng.uniform(-1, 1)  # End push, high variance
+
+    # Daily random noise (±15%)
+    noise = 1.0 + rng.uniform(-0.15, 0.15)
+
+    combined = weekend_factor * maintenance_factor * demand_factor * noise
+
+    if scale == "phase2":
+        base = 5_000_000  # 5M base
+        rows = int(base * combined)
+        return max(2_000_000, min(9_000_000, rows))  # Clamp: 2M-9M
+    elif scale == "phase3":
+        base = 150_000_000  # 150M base
+        rows = int(base * combined)
+        return max(30_000_000, min(350_000_000, rows))  # Clamp: 30M-350M
+    else:
+        return ROWS_PER_DAY
+
+
+# ═══════════════════════════════════════════════════════════════
 # DRIFT SCHEDULE — 40-day production simulation
 # ═══════════════════════════════════════════════════════════════
 
@@ -409,14 +468,22 @@ def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
 
 def generate_all_days(start_day: int = 1, end_day: int = 40,
                       n_rows: int = ROWS_PER_DAY,
-                      output_dir: Path = PRODUCTION_DIR) -> dict:
-    """Generate all specified days and return summary."""
+                      output_dir: Path = PRODUCTION_DIR,
+                      scale: str = "fixed") -> dict:
+    """Generate all specified days and return summary.
+
+    Args:
+        scale: "fixed" = use n_rows for every day
+               "phase2" = variable 2M-9M rows/day
+               "phase3" = variable 30M-350M rows/day
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
 
-    summary = {"days": [], "total_rows": 0, "total_size_mb": 0}
+    summary = {"days": [], "total_rows": 0, "total_size_mb": 0, "scale": scale}
     for day in range(start_day, end_day + 1):
-        path = generate_day(day, n_rows=n_rows, output_dir=output_dir)
+        day_rows = get_daily_volume(day, scale) if scale != "fixed" else n_rows
+        path = generate_day(day, n_rows=day_rows, output_dir=output_dir)
         size_mb = path.stat().st_size / 1e6
         cfg = get_drift_config(day)
         summary["days"].append({
@@ -424,9 +491,9 @@ def generate_all_days(start_day: int = 1, end_day: int = 40,
             "scenario": cfg["scenario"],
             "file": str(path.name),
             "size_mb": round(size_mb, 1),
-            "rows": n_rows,
+            "rows": day_rows,
         })
-        summary["total_rows"] += n_rows
+        summary["total_rows"] += day_rows
         summary["total_size_mb"] += size_mb
 
     elapsed = time.time() - t0
@@ -461,12 +528,16 @@ if __name__ == "__main__":
     parser.add_argument("--end-day", type=int, default=None, help="End day (default: same as --day)")
     parser.add_argument("--rows", type=int, default=ROWS_PER_DAY, help=f"Rows per day (default: {ROWS_PER_DAY:,})")
     parser.add_argument("--output-dir", type=str, default=str(PRODUCTION_DIR))
+    parser.add_argument("--scale", choices=["fixed", "phase2", "phase3"], default="fixed",
+                        help="Volume scale: fixed=5M/day, phase2=2-9M/day, phase3=30-350M/day")
     args = parser.parse_args()
 
     end_day = args.end_day or args.day
     out_dir = Path(args.output_dir)
 
     if args.day == end_day:
-        generate_day(args.day, n_rows=args.rows, output_dir=out_dir)
+        day_rows = get_daily_volume(args.day, args.scale) if args.scale != "fixed" else args.rows
+        generate_day(args.day, n_rows=day_rows, output_dir=out_dir)
     else:
-        generate_all_days(args.day, end_day, n_rows=args.rows, output_dir=out_dir)
+        generate_all_days(args.day, end_day, n_rows=args.rows,
+                          output_dir=out_dir, scale=args.scale)
