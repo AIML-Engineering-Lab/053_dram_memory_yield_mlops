@@ -54,11 +54,12 @@ for d in t['days']:
 - Val AUC-ROC=0.816, AUC-PR=0.054, F1=0.127, best epoch 39
 - Artifact: `s3://p053-mlflow-artifacts/models/day1_champion.pt`
 
-**Sessions 2 & 3 → AWS Airflow (automatic, NOT Colab):**
+**Sessions 2 & 3 → g4dn.xlarge on AWS via Airflow (automatic, NOT Colab):**
 - `dag_retrain_gate.py` detects drift (PSI threshold) + staleness gate
-- Triggers `src/train.py` on EC2 instance (CPU, ~10-30 min for 30 epochs on drifted subset)
-- MLflow logs retrain run to RDS PostgreSQL automatically
-- No manual Colab intervention needed
+- Spins up g4dn.xlarge (T4 GPU, $0.526/hr) — only during retrain window
+- Triggers `src/train.py` with the FULL day's data (5M rows, includes all drift data for that day — MORE data than normal days)
+- 30 epochs on T4 ≈ 25-40 min, then instance switches back to t3.medium
+- MLflow logs retrain run, plots, and model weights to RDS PostgreSQL + S3 automatically
 
 ### Phase C: AWS Cloud (1-2 month subscription)
 ```bash
