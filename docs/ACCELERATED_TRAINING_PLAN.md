@@ -11,18 +11,18 @@ Our 40-day simulation has ~2-3 retrain events. We train ONLY on those days.
 
 ### Simulation Timeline (from --medium run):
 
-| Day | Scenario | Training? | Why |
-|-----|----------|-----------|-----|
-| 1 | Baseline (clean) | ✅ **Initial model** | First model, A100 50 epochs |
-| 2-8 | Clean reference | ❌ | No drift possible (reference window) |
-| 9-14 | Early warnings | ❌ | Warnings only, < 3 critical features |
-| 15-20 | Moderate drift | ❌ | Critical features building up |
-| 21-25 | Equipment aging | ⚠️ Maybe | If 3+ features cross PSI > 0.2 |
-| 26-30 | Process change | ✅ **Retrain v2** | Major drift, 30-day staleness passed |
-| 31-35 | Post-retrain | ❌ | New model deployed, monitoring |
-| 36-38 | Recovery | ❌ | System stable |
-| 39 | Bad model deploy | ✅ **Retrain v3** | Deliberately deploy bad → rollback |
-| 40 | Recovery | ❌ | System recovered |
+| Day | Scenario | Training? | Why | Status |
+|-----|----------|-----------|-----|--------|
+| 1 | Baseline (clean) | ✅ **Initial model** | First model, A100 50 epochs | ✅ DONE — 201.7 min, AUC-ROC=0.816, F1=0.127 |
+| 2-8 | Clean reference | ❌ | No drift possible (reference window) | ⬜ |
+| 9-14 | Early warnings | ❌ | Warnings only, < 3 critical features | ⬜ |
+| 15-20 | Moderate drift | ❌ | Critical features building up | ⬜ |
+| 21-25 | Equipment aging | ⚠️ Maybe | If 3+ features cross PSI > 0.2 | ⬜ |
+| 26-30 | Process change | ✅ **Retrain v2** | Major drift, 30-day staleness passed | ⬜ |
+| 31-35 | Post-retrain | ❌ | New model deployed, monitoring | ⬜ |
+| 36-38 | Recovery | ❌ | System stable | ⬜ |
+| 39 | Bad model deploy | ✅ **Retrain v3** | Deliberately deploy bad → rollback | ⬜ |
+| 40 | Recovery | ❌ | System recovered | ⬜ |
 
 **Result: 3 actual training runs instead of 40.**
 

@@ -14,14 +14,14 @@
 | P1 Docker | 10/13 | 3 | User browser checks |
 | P2 Notebook | 6/6 | 0 | — |
 | P3 GitHub | 5/7 | 2 | User verifies repo + branch protection |
-| P4 CI/CD | 4/9 | 5 | CI run results + AWS secrets |
+| P4 CI/CD | 5/9 | 4 | CI lint fixed (6b347ae); verify on Actions tab |
 | P5 AWS Infra | 7/18 | 11 | EC2 launch + RDS (charges start) |
-| P6 Colab A100 | 0/16 | 16 | AWS infra ready |
-| P7 40-Day Sim | 0/13 | 13 | Colab training done |
+| P6 Colab A100 | 4/16 | 12 | **Session 1 DONE** ✅ 50ep/201.7min/AUC-ROC=0.816 |
+| P7 40-Day Sim | 0/13 | 13 | EC2+RDS launch needed |
 | P8 Report | 0/6 | 6 | Simulation data |
 | P9 Content | 3/4 | 1 | User LinkedIn review |
 | P10 Polish | 1/8 | 7 | Everything above |
-| **Total** | **46/111** | **65** | |
+| **Total** | **51/111** | **60** | |
 
 ---
 

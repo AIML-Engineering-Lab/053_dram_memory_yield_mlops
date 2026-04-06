@@ -7,6 +7,24 @@
 
 ---
 
+## ✅ Completed Steps (as of 2026-06-29)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| 1. AWS Account | ✅ Done | Account 718036735422 |
+| 2. Root MFA | ✅ Done | Enabled |
+| 3. IAM User | ✅ Done | `p053-cicd-user`, credentials in `.env.aws` |
+| 4. AWS CLI | ✅ Done | `aws sts get-caller-identity` → 718036735422 |
+| 5. S3 Bucket | ✅ Done | `s3://p053-mlflow-artifacts` — day1_champion.pt uploaded |
+| 6. ECR Repo | ✅ Done | `718036735422.dkr.ecr.us-west-2.amazonaws.com/053-memory-yield-predictor` |
+| 7.1 Key Pair | ✅ Done | `p053-key` → `~/.ssh/p053-key.pem` |
+| 7.2 Security Group | ✅ Done | `sg-0f11ba29c1155cba3`, ports 22/5001/3000/8000/8080/9000 from 121.6.66.58 |
+| 7.3 EC2 Launch | ⬜ **NEXT** | t3.medium, costs $0.0416/hr — START when ready |
+| 8. RDS PostgreSQL | ⬜ Pending | db.t3.micro, costs $0.018/hr — after EC2 ready |
+| 9. GitHub Secrets | ⬜ Pending | After EC2 IP known |
+
+---
+
 ## Table of Contents
 
 1. [Create AWS Account (if not done)](#1-create-aws-account)
