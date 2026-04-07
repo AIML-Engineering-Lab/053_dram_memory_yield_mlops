@@ -43,6 +43,17 @@ _gen_*.py
 
 # Simulation logs
 simulation_*.log
+data/logs/
+
+# Reference-only docs (HTML guides, PDFs, planning MDs)
+docs/PyTorch_Advanced_Guide.html
+docs/Big_Data_Concepts_Guide.html
+docs/Cloud_Infrastructure_Guide.html
+docs/commnds_execution_log.txt
+docs/ACCELERATED_TRAINING_PLAN.md
+docs/REASONING_INFORMATION.md
+docs/TERMINOLOGY_GUIDE.md
+never_forget_copilot_instructions.md
 
 # Generator/temp scripts (should be deleted, not committed)
 _gen_*.py

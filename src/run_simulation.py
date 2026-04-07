@@ -38,6 +38,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import DATA_DIR, MLFLOW, SIMULATION
 from src.mlflow_utils import init_mlflow
+from src.simulation_logger import SimulationDayLogger
 from src.streaming_data_generator import PRODUCTION_DIR, generate_day, get_drift_config
 
 TIMELINE_PATH = DATA_DIR / "simulation_timeline.json"
@@ -90,6 +91,12 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
         day_t0 = time.time()
         cfg = get_drift_config(day)
 
+        # Initialize comprehensive daily logger
+        scale = "phase2"  # Default; overridden by SIMULATION_SCALE env var
+        import os as _os
+        scale = _os.environ.get("SIMULATION_SCALE", scale)
+        day_logger = SimulationDayLogger(day=day, phase=scale)
+
         day_record = {
             "day": day,
             "date": (sim_start + timedelta(days=day - 1)).strftime("%Y-%m-%d"),
@@ -99,8 +106,31 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
         }
 
         # ── STEP 1: Generate data ──
+        gen_t0 = time.time()
         parquet_path = generate_day(day, n_rows=rows_per_day)
         day_record["parquet_mb"] = round(parquet_path.stat().st_size / 1e6, 1)
+        day_logger.log_data_generation(
+            rows=rows_per_day, parquet_mb=day_record["parquet_mb"],
+            scenario=cfg["scenario"], elapsed_sec=round(time.time() - gen_t0, 1),
+        )
+
+        # ── GPU/Infra Selection ──
+        try:
+            from src.gpu_selector import get_gpu_decision_for_day
+            model_params = int(_os.environ.get("MODEL_PARAMS", "317000"))
+            current_instance = _os.environ.get("EC2_INSTANCE_TYPE", "g4dn.xlarge")
+            gpu_decision = get_gpu_decision_for_day(day, model_params, current_instance)
+            day_logger.log_infra_selection(
+                model_params=model_params,
+                estimated_vram_gb=gpu_decision["estimated_vram_gb"],
+                selected_gpu=gpu_decision["selected_gpu"],
+                instance_type=gpu_decision["selected_instance"],
+                cost_per_hour=gpu_decision["cost_per_hour"],
+                needs_switch=gpu_decision["needs_instance_switch"],
+                reason=gpu_decision["action"],
+            )
+        except Exception as e:
+            day_logger.logger.warning(f"[INFRA] GPU selector unavailable: {e}")
 
         # ── STEP 2: Kafka (optional) ──
         if not skip_kafka:
@@ -110,8 +140,10 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 stats = publish_day(day, producer, batch_size=10_000)
                 day_record["kafka_msg_per_sec"] = stats["throughput_msg_per_sec"]
                 day_record["events"].append("kafka_published")
+                day_logger.log_kafka("published", msg_per_sec=stats["throughput_msg_per_sec"])
             except (ImportError, Exception) as e:
                 day_record["events"].append(f"kafka_skip: {e}")
+                day_logger.log_kafka("skipped", error=str(e))
 
         # ── STEP 3: Spark ETL (optional) ──
         if not skip_spark:
@@ -120,13 +152,27 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 etl_result = run_etl(day, day)
                 day_record["spark_rows_per_sec"] = etl_result.get("throughput_rows_per_sec", 0)
                 day_record["events"].append("spark_etl_complete")
+                day_logger.log_spark_etl("completed", rows_per_sec=day_record["spark_rows_per_sec"])
             except (ImportError, Exception) as e:
                 day_record["events"].append(f"spark_skip: {e}")
+                day_logger.log_spark_etl("skipped", error=str(e))
 
         # ── STEP 4: Drift detection (standalone, no Spark) ──
         if day >= 9:  # Only check after reference window
             drift_result = _standalone_drift_check(day)
             day_record["drift"] = drift_result
+
+            # Log drift to comprehensive daily log
+            day_logger.log_drift_detection(
+                features_critical=drift_result["features_critical"],
+                features_warning=drift_result["features_warning"],
+                feature_psi=drift_result.get("feature_psi", {}),
+                drift_reliable=drift_result.get("drift_reliable", True),
+                ref_rows=drift_result.get("ref_rows", 0),
+                analysis_rows=drift_result.get("analysis_rows", 0),
+                low_data_warning=drift_result.get("low_data_warning"),
+            )
+
             if drift_result["features_critical"] >= 3:
                 day_record["events"].append(f"drift_critical_{drift_result['features_critical']}_features")
             elif drift_result["features_warning"] > 0:
@@ -136,9 +182,11 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
 
             # ── STEP 5: Retrain check (3-criteria gate) ──
             days_since_retrain = day - last_retrain_day
+            low_data_blocked = not drift_result.get("drift_reliable", True)
             should_retrain = (
                 drift_result["features_critical"] >= 3
                 and days_since_retrain >= 30
+                and not low_data_blocked
             )
             if should_retrain:
                 day_record["events"].append("RETRAIN_TRIGGERED")
@@ -148,17 +196,47 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 retrain_history.append({"day": day, "new_model": model_version})
                 last_retrain_day = day
 
+                day_logger.log_retrain_decision(
+                    should_retrain=True,
+                    reason=f"{drift_result['features_critical']} critical features, "
+                           f"{days_since_retrain}d since last retrain",
+                    drift_critical=drift_result["features_critical"],
+                    days_since_retrain=days_since_retrain,
+                )
+
                 # Log retrain event to MLflow
                 _log_retrain_to_mlflow(day, model_version, drift_result, days_since_retrain)
             elif drift_result["features_critical"] >= 3:
+                reason = (f"staleness gate ({days_since_retrain}d < 30)"
+                          if not low_data_blocked
+                          else "low-data drift (tagged only, not actionable)")
+                day_logger.log_retrain_decision(
+                    should_retrain=False, reason=reason,
+                    drift_critical=drift_result["features_critical"],
+                    days_since_retrain=days_since_retrain,
+                    staleness_blocked=(days_since_retrain < 30),
+                    low_data_blocked=low_data_blocked,
+                )
                 day_record["events"].append(f"retrain_blocked_staleness_{days_since_retrain}d")
+            else:
+                day_logger.log_retrain_decision(
+                    should_retrain=False,
+                    reason=f"only {drift_result['features_critical']} critical features (need ≥3)",
+                    drift_critical=drift_result["features_critical"],
+                    days_since_retrain=days_since_retrain,
+                )
 
         # Day 39: bad model deploy scenario
         if day == 39:
             day_record["events"].append("BAD_MODEL_DEPLOYED")
             day_record["events"].append("CANARY_FAILED")
             day_record["events"].append("ROLLBACK_TO_v2")
-            model_version = retrain_history[-1]["new_model"] if retrain_history else "v1_original"
+            rollback_to = retrain_history[-1]["new_model"] if retrain_history else "v1_original"
+            day_logger.log_rollback(
+                from_version=model_version, to_version=rollback_to,
+                reason="Day 39 bad model deploy scenario — canary failed",
+            )
+            model_version = rollback_to
 
         if day == 40:
             day_record["events"].append("SYSTEM_RECOVERED")
@@ -173,12 +251,19 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 n_uploaded = len([k for k in s3_result if k != "status"])
                 day_record["s3_uploaded"] = n_uploaded
                 day_record["events"].append(f"s3_uploaded_{n_uploaded}_files")
+                day_logger.log_s3_upload(n_files=n_uploaded, status="uploaded")
+            else:
+                day_logger.log_s3_upload(n_files=0, status="skipped")
         except Exception as e:
             day_record["events"].append(f"s3_skip: {e}")
+            day_logger.log_s3_upload(n_files=0, status="error", error=str(e))
 
         day_elapsed = time.time() - day_t0
         day_record["elapsed_sec"] = round(day_elapsed, 1)
         timeline["days"].append(day_record)
+
+        # Finalize comprehensive daily log (writes .log + .json)
+        day_logger.finalize()
 
         # Progress line
         events_str = ", ".join(day_record["events"][:3]) if day_record["events"] else "—"
@@ -327,11 +412,18 @@ def _standalone_drift_check(day: int) -> dict:
     analysis_path = PRODUCTION_DIR / f"day_{day:02d}.parquet"
 
     if not ref_path.exists() or not analysis_path.exists():
-        return {"features_critical": 0, "features_warning": 0, "error": "missing files"}
+        return {"features_critical": 0, "features_warning": 0, "error": "missing files",
+                "drift_reliable": False}
 
     # Sample for speed (100K rows is enough for PSI)
     ref_df = pd.read_parquet(ref_path).sample(n=min(100_000, 5_000_000), random_state=42)
     analysis_df = pd.read_parquet(analysis_path).sample(n=min(100_000, 5_000_000), random_state=42)
+
+    # Low-data tagging: if either dataset has < 10K rows, drift detection
+    # is statistically unreliable. Log to MLflow for transparency but
+    # NEVER use for retrain decisions.
+    MIN_RELIABLE_ROWS = 10_000
+    low_data = len(ref_df) < MIN_RELIABLE_ROWS or len(analysis_df) < MIN_RELIABLE_ROWS
 
     key_features = [
         "test_temp_c", "cell_leakage_fa", "retention_time_ms",
@@ -371,12 +463,23 @@ def _standalone_drift_check(day: int) -> dict:
             n_warning += 1
 
     # Save drift report
+    # If low data, tag the drift but NEVER allow retrain
+    drift_reliable = not low_data
+    should_retrain = n_critical >= 3 and drift_reliable
+
     report = {
         "analysis_day": day,
         "features_critical": n_critical,
         "features_warning": n_warning,
         "feature_psi": feature_psi,
-        "should_retrain": n_critical >= 3,
+        "should_retrain": should_retrain,
+        "drift_reliable": drift_reliable,
+        "low_data_warning": (
+            f"Only {min(len(ref_df), len(analysis_df)):,} rows — "
+            f"drift tagged for transparency, excluded from retrain decisions"
+        ) if low_data else None,
+        "ref_rows": len(ref_df),
+        "analysis_rows": len(analysis_df),
     }
 
     report_path = DRIFT_REPORT_DIR / f"drift_day_{day:02d}.json"

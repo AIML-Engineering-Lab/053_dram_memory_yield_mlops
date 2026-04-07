@@ -111,6 +111,14 @@ def _check_retrain_criteria(**context):
 
     should_retrain = report.get("should_retrain", False)
     critical = report.get("features_critical", 0)
+    drift_reliable = report.get("drift_reliable", True)
+
+    # Low-data guard: log for transparency, never retrain
+    if not drift_reliable:
+        low_data_msg = report.get("low_data_warning", "insufficient samples")
+        print(f"[LOW-DATA] Day {day}: drift tagged for info only — {low_data_msg}")
+        print(f"[LOW-DATA] {critical} critical features detected but NOT actionable")
+        return "skip_retrain"
 
     # Staleness gate: need >= 30 days of data for retrain
     if day < 30:
