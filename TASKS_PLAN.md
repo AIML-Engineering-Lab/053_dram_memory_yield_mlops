@@ -1,8 +1,9 @@
 # P053 — Production Execution Tasks
 
-> **Timeline:** Feb 1 – Mar 12, 2026 (40 working days)
-> **Budget:** $50/month ($10 Colab Pro + $40 AWS)
+> **Timeline:** Apr 4 – May 15, 2026 (40 working days)
+> **Budget:** $1,000 SGD (~$740 USD) — g4dn.xlarge GPU on AWS
 > **GitHub:** [AIML-Engineering-Lab/053_dram_memory_yield_mlops](https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops)
+> **Architecture:** ALL ON AWS — Zero Colab, Zero MacBook training
 
 ---
 
@@ -10,45 +11,76 @@
 
 | Phase | Done | Remaining | Blocked On |
 |-------|------|-----------|------------|
-| P0 Cleanup | 10/11 | 1 | Folder rename (optional) |
+| P0 Cleanup + Phase 0 Wire-Up | 11/11 | 0 | ✅ COMPLETE (commit aeb83e2) |
+| P0b GPU Selector + Drift Tags | 5/5 | 0 | ✅ COMPLETE (commit 072f877) |
 | P1 Docker | 10/13 | 3 | User browser checks |
 | P2 Notebook | 6/6 | 0 | — |
 | P3 GitHub | 5/7 | 2 | User verifies repo + branch protection |
-| P4 CI/CD | 5/9 | 4 | CI lint fixed (6b347ae); verify on Actions tab |
-| P5 AWS Infra | 7/18 | 11 | EC2 launch + RDS (charges start) |
-| P6 Colab A100 | 4/16 | 12 | **Session 1 DONE** ✅ 50ep/201.7min/AUC-ROC=0.816 |
-| P7 40-Day Sim | 0/13 | 13 | EC2+RDS launch needed |
+| P4 CI/CD | 5/9 | 4 | CI Run #15 triggered; verify on Actions tab |
+| P5 AWS Infra (Code) | 18/20 | 2 | **GPU quota increase pending (0→4 vCPUs)** |
+| P6 GPU Training | 1/4 | 3 | **Day 1 DONE** ✅. Retrains on g4dn.xlarge after quota |
+| P7 40-Day Sim | 0/13 | 13 | EC2 launch needed (GPU quota) |
 | P8 Report | 0/6 | 6 | Simulation data |
 | P9 Content | 3/4 | 1 | User LinkedIn review |
 | P10 Polish | 1/8 | 7 | Everything above |
-| **Total** | **51/111** | **60** | |
+| **Total** | **64/106** | **42** | **GPU quota approval** |
+
+### Phase 0 Completion (commit aeb83e2 — pushed to GitHub)
+- ✅ Replaced ALL fake/simulated code with REAL GPU training (train.py subprocess)
+- ✅ S3ArtifactManager (boto3) — uploads models, Parquet, drift reports to S3
+- ✅ docker-compose-bigdata-aws.yml — production stack for g4dn.xlarge (real S3/RDS, NVIDIA GPU)
+- ✅ ec2-user-data.sh — full EC2 bootstrap (Docker, NVIDIA drivers, nvidia-container-toolkit)
+- ✅ ec2_auto_stop.py — auto-stop EC2 + RDS + NAT gateway after Phase 3 + CloudWatch $200 billing alarm
+- ✅ Variable daily volumes (1M–10M rows/day) via get_daily_volume()
+- ✅ Real MLflow Model Registry operations (register, promote, rollback)
+- ✅ 20/20 tests passing, lint clean, CI passing
+
+### Phase 0b Completion (commit 072f877 — pushed to GitHub)
+- ✅ gpu_selector.py — Auto GPU selection: T4 (<50M params) → A100 (>1.2B params or >1B rows)
+- ✅ Low-data drift tagging — drift_reliable flag, tagged to MLflow, never triggers retrain
+- ✅ RDS auto-stop — Phase 3 cleanup stops EC2 + RDS + deletes NAT gateway
+- ✅ CloudWatch alarm → $200 USD (was $500)
+- ✅ Comprehensive daily simulation logger (simulation_log.py)
+
+### Phase 0b+ Completion: Colab Fallback (commit 6feff7a — pushed to GitHub)
+- ✅ compute_backend.py — AWS→Colab→Local fallback chain with auto-detection
+- ✅ gpu_selector.py — Colab GPU catalog added (T4 default, A100 for >1TB/day)
+- ✅ run_simulation.py — --backend and --checkpoint flags for Colab resilience
+- ✅ NB04_colab_training.ipynb — Colab notebook with T4/A100 support, S3 upload
+- ✅ .github/copilot-instructions.md — standalone workspace context (13 sections)
+- ✅ ED-043 documented (compute backend fallback decision)
+- ✅ never_forget rules updated for Colab fallback (Rules 12-13)
+- ✅ AWS appeal submitted for GPU quota re-evaluation
+
+**Why:** AWS rejected GPU quota (0→4 vCPUs for G instances). Built Colab fallback in same session. Zero blocked days.
 
 ---
 
-## 40-Day Production Timeline
+## 40-Day Production Timeline (AWS-Primary, Colab-Fallback Architecture)
 
 ```
-Feb 1-3    ┃ P5: AWS setup (EC2 + RDS + S3 + ECR)
-Feb 4      ┃ P6: Upload NB03 to Colab, connect A100
-Feb 4-5    ┃ P6: Session 1 — Day 1 initial training (50 epochs, ~90 min)
-Feb 5      ┃ Deploy Day 1 model → Docker stack on EC2
-Feb 6-25   ┃ P7: Daily inference on synthetic data (100K-1M rows/day)
-           ┃     Day 5:  first health check
-           ┃     Day 15: PSI shows early shift
-           ┃     Day 20: moderate drift detected → Colab retrain Session 2
-Feb 26     ┃ P6: Session 2 — Day 20 drift retrain (30 epochs, ~60 min)
-Feb 27     ┃ Deploy retrained model v2
-Feb 28-    ┃ P7: Continue daily inference
-Mar 3      ┃     Day 31: severe drift → Colab retrain Session 3
-Mar 3      ┃ P6: Session 3 — Day 31 severe drift (40 epochs)
-Mar 4      ┃     Deploy model v3
-Mar 5-8    ┃ P7: Recovery period
-           ┃     Day 35: model degradation detected
-Mar 9      ┃ P6: Session 4 — Day 39 from-scratch recovery (50 epochs)
-Mar 10     ┃ Deploy champion model v4
-Mar 11     ┃ P7: Full production run (5M rows/day × 40 = 200M total)
-Mar 12     ┃ P8: Report + Dashboard update, P9: LinkedIn, P10: Final push
+Day 0      ┃ P5: Launch g4dn.xlarge EC2 + RDS PostgreSQL on AWS
+           ┃     ec2-user-data.sh bootstraps: Docker, NVIDIA drivers, repo clone
+           ┃     docker-compose-bigdata-aws.yml starts: Airflow+GPU, MLflow→RDS, Kafka, Spark
+Day 1      ┃ P6: Deploy Day 1 champion model (trained on Colab A100, AUC-ROC=0.816)
+           ┃     Register model v1 @champion in MLflow → S3
+Day 2-19   ┃ P7: Airflow DAG runs daily simulation (1M-10M rows/day, variable)
+           ┃     Kafka streaming → Spark ETL → batch predict → drift monitoring
+           ┃     Day 5:  first health check (PSI baseline)
+           ┃     Day 15: PSI shows early shift, warnings logged
+Day 20     ┃ P7: Moderate drift detected (PSI > 0.10, 3+ critical features)
+           ┃     Retrain triggered ON g4dn.xlarge T4 GPU (~45 min, 30 epochs)
+           ┃     Canary test → promote v2 @champion → S3 upload
+Day 21-30  ┃ P7: Continue daily inference with v2
+Day 31     ┃ P7: Severe drift → Retrain v3 ON g4dn.xlarge (40 epochs)
+Day 32-38  ┃ P7: Recovery period monitoring
+Day 39     ┃ P7: Bad model deliberate deploy → rollback → retrain v4 (50 epochs)
+Day 40     ┃ P7: Final production run. ec2_auto_stop.py triggers.
+           ┃ P8: Report + Dashboard, P9: LinkedIn, P10: Final push
 ```
+
+**Key change from earlier plan:** ALL retraining happens on AWS g4dn.xlarge (T4 GPU, $0.526/hr).
+No more Colab for retrains. Only Day 1 initial training was done on Colab A100.
 
 ---
 
@@ -86,52 +118,46 @@ Mar 12     ┃ P8: Report + Dashboard update, P9: LinkedIn, P10: Final push
 2. Click "New repository secret"
 3. Add each: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (us-west-2)
 
-### P5: AWS Infrastructure (16 tasks)
+### P5: AWS Infrastructure (2 remaining — launch only)
 
-**What I need from you:**
-1. AWS Access Key ID
-2. AWS Secret Access Key
-3. AWS Region preference (us-west-2 recommended — cheapest)
+**Phase 0 built all infrastructure code.** Remaining tasks are LAUNCH operations.
 
-| # | Task | Who | Est. |
-|---|------|-----|------|
-| 47 | Verify AWS CLI: `aws sts get-caller-identity` | User | 1 min |
-| 48 | Run setup_aws.sh: Creates S3 + RDS + ECR | Both | 10 min |
-| 49 | Wait for RDS to be available | Auto | 10 min |
-| 50 | Configure RDS security group | User | 5 min |
-| 51 | Create S3 bucket policy | Both | 5 min |
-| 52 | Launch EC2 t3.medium (Amazon Linux 2023, 30 GB) | User | 5 min |
-| 53 | Install Docker + Compose on EC2 | Both | 10 min |
-| 54 | Configure EC2 security groups (22,5001,8000,3000,9090) | User | 5 min |
-| 55 | Copy compose + configs to EC2 | Both | 5 min |
-| 56 | Fill in .env on EC2 (RDS endpoint, S3 bucket) | Both | 5 min |
-| 57 | Deploy compose on EC2 | Both | 5 min |
-| 58 | Verify MLflow UI on AWS | Both | 2 min |
-| 59 | Verify PostgreSQL on RDS | Both | 2 min |
-| 60 | Verify S3 access | Both | 1 min |
-| 61 | Run retrolog against AWS MLflow | Both | 5 min |
-| 62 | Take AWS screenshots | User | 10 min |
+| # | Task | Who | Status |
+|---|------|-----|--------|
+| 47 | Verify AWS CLI: `aws sts get-caller-identity` | User | ✅ |
+| 48 | S3 bucket created: `p053-mlflow-artifacts` | Both | ✅ |
+| 49 | ECR repo created: `053-memory-yield-predictor` | Both | ✅ |
+| 50 | EC2 key pair: `p053-key` | Both | ✅ |
+| 51 | Security group: `sg-0f11ba29c1155cba3` | Both | ✅ |
+| 52 | `.env.aws.template` updated | Copilot | ✅ |
+| 53 | `docker-compose-bigdata-aws.yml` — production stack (GPU) | Copilot | ✅ |
+| 54 | `Dockerfile.airflow-gpu` — PyTorch CUDA 12.1 | Copilot | ✅ |
+| 55 | `ec2-user-data.sh` — g4dn.xlarge bootstrap | Copilot | ✅ |
+| 56 | `s3_utils.py` — S3ArtifactManager (boto3) | Copilot | ✅ |
+| 57 | `ec2_auto_stop.py` — auto-stop + billing alarm | Copilot | ✅ |
+| 58 | Real GPU training wired into DAGs | Copilot | ✅ |
+| 59 | Real MLflow Model Registry in promote/rollback | Copilot | ✅ |
+| 60 | 20/20 tests passing, lint clean | Copilot | ✅ |
+| 61 | **Launch g4dn.xlarge EC2 instance** | User | ⏳ GPU quota pending (appeal submitted) |
+| 62 | **RDS PostgreSQL provisioned** | User | ✅ p053-mlflow-db (stopped, saving costs) |
+| 61b | **Colab fallback: compute_backend.py** | Copilot | ✅ AWS→Colab→Local chain |
+| 61c | **Colab fallback: NB04_colab_training.ipynb** | Copilot | ✅ T4/A100 with checkpoint |
 
-### P6: Colab A100 Training (16 tasks)
+**Cost estimate:** g4dn.xlarge @ $0.526/hr × ~100 hrs = ~$53. RDS db.t3.micro @ $0.018/hr × 720 hrs = ~$13. S3 ~$5. **Total: ~$71 USD**
+**Colab fallback cost:** T4 @ 1.36 CU/hr × ~16 hrs = ~22 CU. Buy 100 CU PAYG (SGD 14.46).
 
-| # | Task | Who | Est. |
-|---|------|-----|------|
-| 63 | Upload NB03 to Google Colab | User | 2 min |
-| 64 | Connect A100 runtime | User | 1 min |
-| 65 | Install deps on Colab | Auto | 3 min |
-| 66 | Set MLFLOW_TRACKING_URI to AWS EC2 IP | User | 1 min |
-| 67 | Verify Colab → AWS connection | User | 1 min |
-| 68 | Upload preprocessed_full.npz (2.1 GB) to Colab | User | 5 min |
-| 69 | **Session 1: Day 1 initial** (50 ep, lr=1e-3) | User | 90 min |
-| 70 | Verify run in AWS MLflow | User | 2 min |
-| 71 | Download Session 1 artifacts to Drive | User | 5 min |
-| 72 | **Session 2: Day 20 drift retrain** (30 ep, lr=3e-4) | User | 60 min |
-| 73 | Verify retrain in MLflow (A/B comparison) | User | 2 min |
-| 74 | Register Day 31 model as v2 @challenger | User | 5 min |
-| 75 | **Session 3: Day 31 severe** (40 ep, lr=1e-4) | User | 70 min |
-| 76 | Demonstrate rollback in MLflow | Both | 5 min |
-| 77 | **Session 4: Day 39 recovery** (50 ep, lr=5e-4) | User | 90 min |
-| 78 | Copy all artifacts to project | Both | 5 min |
+### P6: GPU Training (3 remaining retrains on g4dn.xlarge)
+
+| # | Task | Who | Status |
+|---|------|-----|--------|
+| 63 | **Day 1 initial training** (Colab A100, 50ep, 201.7min) | User | ✅ AUC-ROC=0.816, AUC-PR=0.054 |
+| 64 | **Day 20 drift retrain** (g4dn.xlarge T4, 30ep, ~45min) | Auto (Airflow) | ⬜ |
+| 65 | **Day 31 severe retrain** (g4dn.xlarge T4, 40ep, ~60min) | Auto (Airflow) | ⬜ |
+| 66 | **Day 39 recovery retrain** (g4dn.xlarge T4, 50ep, ~90min) | Auto (Airflow) | ⬜ |
+
+**Key change:** Retrains are FULLY AUTOMATED via `dag_retrain_pipeline.py` on AWS g4dn.xlarge.
+If AWS unavailable, retrains run on Colab T4 via NB04 with `--checkpoint` for disconnect resilience.
+`_execute_gpu_training()` calls `train.py` via subprocess on T4 GPU.
 
 ### P7: 40-Day Production Simulation (13 tasks)
 
@@ -182,22 +208,32 @@ Mar 12     ┃ P8: Report + Dashboard update, P9: LinkedIn, P10: Final push
 
 ---
 
-## Data Flow Architecture
+## Data Flow Architecture (AWS-Only)
 
 ```
-┌─── LOCAL (Mac) ─────────────────────────────────────┐
-│  src/data_generator.py → 16M rows (2.1 GB NPZ)      │
-│  DVC tracks data → S3 (pointer files in git)         │
-│  Docker stack: API + MLflow + PostgreSQL + monitoring │
-└──────────────────────────────────────────────────────┘
-        │ upload 2.1 GB                    │ git push
-        ▼                                  ▼
-┌─── COLAB A100 ──────┐  ┌─── GITHUB ─────────────────┐
-│  NB03 training       │  │  CI/CD: lint → test → build │
-│  4 sessions, MLflow  │  │  Docker → GHCR + ECR        │
-│  → logs to AWS MLflow│  └───────────────────────────┘
-└──────────────────────┘
-        │ MLflow metrics + artifacts
+┌─── LOCAL (Mac) — Development Only ──────────────────┐
+│  src/ code development, tests, lint                        │
+│  git push → GitHub → CI/CD → GHCR + ECR                    │
+└────────────────────────────────────────────────┘
+        │ git push                
+        ▼                          
+┌─── GITHUB ─────────────┐    ┌─── AWS g4dn.xlarge (T4 GPU) ────────────┐
+│  CI: lint → test → build  │    │  Airflow (GPU scheduler)                   │
+│  Docker → GHCR + ECR     │    │   └→ dag_simulation_master.py (40 days)     │
+└──────────────────────┘    │   └→ dag_daily_yield_pipeline.py            │
+                                │   └→ dag_retrain_pipeline.py (REAL T4 GPU) │
+                                │  Kafka → Spark ETL → predict → drift      │
+                                │  FastAPI serving + Prometheus metrics     │
+                                │  ec2_auto_stop.py at Phase 3 completion   │
+                                └──────┬────────┬────────────────────┘
+                                       │        │
+                                       ▼        ▼
+                                ┌── S3 ──┐  ┌── RDS PostgreSQL ──┐
+                                │ models │  │ MLflow tracking    │
+                                │ data   │  │ experiment metadata│
+                                │ drift  │  └───────────────────┘
+                                └───────┘
+```
         ▼
 ┌─── AWS ──────────────────────────────────────────────┐
 │  EC2: Docker stack (API, MLflow, Prometheus, Grafana) │
