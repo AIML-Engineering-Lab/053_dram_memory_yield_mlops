@@ -71,7 +71,7 @@ class GPURequirement:
         }
 
 
-# GPU catalog (us-west-2 on-demand pricing)
+# GPU catalog — AWS EC2 (us-west-2 on-demand pricing)
 GPU_CATALOG = [
     GPURequirement(
         gpu_name="T4",
@@ -323,6 +323,44 @@ def _human_readable_params(n: int) -> str:
     elif n >= 1e3:
         return f"{n/1e3:.0f}K"
     return str(n)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Colab GPU Catalog (for fallback when AWS unavailable)
+# ═══════════════════════════════════════════════════════════════
+
+COLAB_GPU_CATALOG = [
+    GPURequirement(
+        gpu_name="T4 (Colab)",
+        vram_gb=15,
+        instance_type="colab-t4",
+        cost_per_hour=1.36,  # CU/hour, not USD
+        supports_bf16=False,
+        supports_fp16=True,
+        recommended_batch_size=4096,
+        reason="Colab T4. Default for <50M params, <1TB/day data. ~1.36 CU/hr.",
+    ),
+    GPURequirement(
+        gpu_name="A100 (Colab)",
+        vram_gb=40,
+        instance_type="colab-a100",
+        cost_per_hour=6.79,  # CU/hour
+        supports_bf16=True,
+        supports_fp16=True,
+        recommended_batch_size=8192,
+        reason="Colab A100. Required when data >1TB/day. ~6.79 CU/hr.",
+    ),
+]
+
+
+def select_colab_gpu(data_gb_per_day: float = 0.0) -> GPURequirement:
+    """Select Colab GPU based on daily data volume.
+
+    Rule: T4 for everything UNLESS data >1TB/day → A100.
+    """
+    if data_gb_per_day > 1000:  # >1TB
+        return COLAB_GPU_CATALOG[1]  # A100
+    return COLAB_GPU_CATALOG[0]  # T4
 
 
 if __name__ == "__main__":

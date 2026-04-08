@@ -7,14 +7,19 @@
 
 ## NON-NEGOTIABLE RULES
 
-1. **EVERYTHING ON AWS. Zero MacBook. Zero Google Colab (Day 1 is done). Zero CPU training.**
-2. **GPU ALWAYS. g4dn.xlarge (T4 GPU) for ALL retraining. Never say "CPU mode."**
+1. **AWS IS PRIMARY. Colab is FALLBACK only when AWS GPU is unavailable.**
+2. **GPU ALWAYS. g4dn.xlarge (T4 GPU) for ALL retraining. Colab T4 as fallback. A100 only when data >1TB/day.**
 3. **Full day's data for retraining. NOT a subset. NOT a sample. The ENTIRE day's volume.**
 4. **Budget: $1000 SGD (~$740 USD). PLAN BIG, DO BIG. No toy projects.**
 5. **All data, models, artifacts stored on S3. Nothing on MacBook.**
 6. **Target: Principal Data Scientist / Principal GenAI Engineer at AMD, NVIDIA, Micron, Qualcomm.**
 7. **Document WHY: GPU vs CPU, Spark vs Pandas, big data vs toy data — for 10K+ LinkedIn followers.**
-8. **Auto-stop EC2 after Phase 3 completes (CloudWatch alarm / Lambda / shutdown script).**
+8. **Auto-stop EC2 + RDS + NAT Gateway after Phase 3 completes (all resources cleaned up).**
+9. **CloudWatch billing alarm at $200 USD (safety net).**
+10. **Low-data drift is TAGGED for transparency (MLflow) but NEVER triggers retraining.**
+11. **Auto GPU selector: T4 for <50M params, A100 for >1TB/day data (src/gpu_selector.py).**
+12. **Compute backend fallback: AWS EC2 → Google Colab → Local MacBook (src/compute_backend.py).**
+13. **MLflow: RDS when AWS active, SQLite when Colab/local. Colab runs registered in RDS later.**
 
 ---
 
@@ -60,8 +65,9 @@
 | Instance | Role | Cost/hr | When |
 |----------|------|---------|------|
 | **g4dn.xlarge** | Full stack + GPU retrain | $0.526 | Phase 2 + 3 |
-| **RDS db.t3.micro** | MLflow PostgreSQL | $0.018 | During simulation |
+| **RDS db.t3.micro** | MLflow PostgreSQL | $0.018 | During simulation (auto-stops after) |
 | **S3** | ALL artifacts | $0.023/GB/mo | Always |
+| **CloudWatch** | Billing alarm | $0 | $200 USD threshold |
 
 **Why g4dn.xlarge for everything?** Real production teams don't switch instances mid-pipeline. One GPU-capable box runs the entire stack. Inference is batch (Spark), retraining is GPU (PyTorch on T4). This is how AMD/Micron operate — dedicated ML pipeline servers.
 
@@ -69,7 +75,7 @@
 
 ## PHASE 0 — CODE FIXES (Copilot, before AWS spend)
 
-**Status: ⬜ NOT STARTED**
+**Status: ✅ COMPLETED — committed as aeb83e2, pushed to GitHub**
 
 The honest truth: Several critical components are FAKE right now.
 

@@ -48,14 +48,39 @@ DRIFT_REPORT_DIR = DATA_DIR / "drift_reports"
 def run_simulation(start_day: int = 1, end_day: int = 40,
                    rows_per_day: int = 5_000_000,
                    skip_spark: bool = False,
-                   skip_kafka: bool = True) -> dict:
+                   skip_kafka: bool = True,
+                   backend: str = "auto",
+                   checkpoint: bool = False) -> dict:
     """
     Execute the full 40-day production simulation.
+
+    Args:
+        backend: "auto", "aws", "colab", or "local" — controls WHERE training runs
+        checkpoint: If True, save progress after each day and resume from last day
 
     Returns a timeline dict with per-day events for dashboard plotting.
     """
     t0 = time.time()
     DRIFT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ── Checkpoint Resume ──
+    CHECKPOINT_PATH = DATA_DIR / "simulation_checkpoint.json"
+    if checkpoint and CHECKPOINT_PATH.exists():
+        with open(CHECKPOINT_PATH) as f:
+            ckpt = json.load(f)
+        resume_day = ckpt.get("last_completed_day", 0) + 1
+        if resume_day > start_day:
+            print(f"  [CHECKPOINT] Resuming from day {resume_day} (last completed: {resume_day - 1})")
+            start_day = resume_day
+
+    # ── Compute Backend Selection ──
+    backend_info = None
+    if backend != "auto":
+        try:
+            from src.compute_backend import get_training_backend
+            backend_info = get_training_backend(force_backend=backend)
+        except ImportError:
+            pass
 
     # Initialize MLflow for simulation logging
     init_mlflow()
@@ -85,6 +110,13 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
     print(f"  Total:    {(end_day-start_day+1) * rows_per_day:,} rows")
     print(f"  Spark:    {'enabled' if not skip_spark else 'disabled'}")
     print(f"  Kafka:    {'enabled' if not skip_kafka else 'disabled'}")
+    if backend_info:
+        print(f"  Backend:  {backend_info.name.value} ({backend_info.gpu_name})")
+        print(f"  MLflow:   {backend_info.mlflow_uri[:60]}")
+    else:
+        print(f"  Backend:  auto (AWS → Colab → Local)")
+    if checkpoint:
+        print(f"  Checkpoint: enabled {'(resuming)' if start_day > 1 else '(fresh)'}")
     print(f"{'='*70}\n")
 
     for day in range(start_day, end_day + 1):
@@ -264,6 +296,19 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
 
         # Finalize comprehensive daily log (writes .log + .json)
         day_logger.finalize()
+
+        # ── Checkpoint Save ──
+        if checkpoint:
+            ckpt_data = {
+                "last_completed_day": day,
+                "timestamp": datetime.now().isoformat(),
+                "backend": backend,
+                "model_version": model_version,
+                "retrain_history": retrain_history,
+                "last_retrain_day": last_retrain_day,
+            }
+            with open(CHECKPOINT_PATH, "w") as f:
+                json.dump(ckpt_data, f, indent=2)
 
         # Progress line
         events_str = ", ".join(day_record["events"][:3]) if day_record["events"] else "—"
@@ -515,6 +560,14 @@ if __name__ == "__main__":
     parser.add_argument("--with-kafka", action="store_true",
                         help="Enable Kafka publishing (requires broker)")
 
+    # Compute backend
+    parser.add_argument("--backend", type=str, default="auto",
+                        choices=["auto", "aws", "colab", "local"],
+                        help="Training backend: aws (EC2 GPU), colab (Google Colab), "
+                             "local (MacBook MPS/CPU), auto (try AWS→Colab→Local)")
+    parser.add_argument("--checkpoint", action="store_true",
+                        help="Save progress after each day, resume if interrupted")
+
     args = parser.parse_args()
 
     # Determine rows per day
@@ -533,4 +586,6 @@ if __name__ == "__main__":
         rows_per_day=rows,
         skip_spark=not args.with_spark,
         skip_kafka=not args.with_kafka,
+        backend=args.backend,
+        checkpoint=args.checkpoint,
     )
