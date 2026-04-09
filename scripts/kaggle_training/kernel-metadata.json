@@ -1,0 +1,12 @@
+{
+  "id": "YOUR_KAGGLE_USERNAME/p053-dram-yield-retrain",
+  "title": "P053 DRAM Yield Retrain",
+  "code_file": "kaggle_train_kernel.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "kernel_sources": []
+}

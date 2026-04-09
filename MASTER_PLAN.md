@@ -1,9 +1,13 @@
 # P053 — MASTER EXECUTION PLAN
 
-> **Project:** 053_memory_yield_mlops (rename pending)
-> **Budget:** $50/month ($10 Colab Pro + $40 AWS)
+> **Project:** 053_memory_yield_mlops
+> **Budget:** $1,000 SGD (~$740 USD) — g4dn.xlarge GPU on AWS
 > **Started:** 2026-04-04
-> **Goal:** Production-grade MLOps project — real AWS, real A100, real PostgreSQL
+> **Goal:** Production-grade MLOps project — real AWS g4dn.xlarge, real S3, real PostgreSQL RDS
+> **Architecture:** ALL ON AWS — Zero Colab retrains, Zero MacBook training
+> **Phase 0:** ✅ COMPLETE (commit aeb83e2, pushed to GitHub)
+> **Phase 0b:** ✅ COMPLETE (commit 072f877 — GPU selector, drift tagging, RDS auto-stop, $200 alarm)
+> **Blocker:** GPU quota = 0 vCPUs for G instances. Increase to 4 requested via Service Quotas.
 
 ---
 
@@ -107,14 +111,14 @@
 | 47b | Create S3 bucket | `aws s3 mb s3://p053-mlflow-artifacts` + versioning | 2 min | User | $0 | 👤 |
 | 47c | Create ECR repository | `aws ecr create-repository` → 053-memory-yield-predictor | 2 min | User | $0 | 👤 |
 | 47d | Create EC2 key pair | p053-key saved at ~/.ssh/p053-key.pem | 2 min | User | $0 | 👤 |
-| 47e | Create security group + rules | p053-sg (sg-0f11ba29c1155cba3), 6 ports from 121.6.66.58 | 5 min | User | $0 | 👤 |
+| 47e | Create security group + rules | p053-sg (sg-0f11ba29c1155cba3), 6 ports from 119.234.92.99 | 5 min | User | $0 | 👤 |
 | 47f | Create .env.aws + commands guide | All AWS values documented, commands explained | 10 min | Copilot | $0 | ✅ |
-| 52 | Launch EC2 instance | t3.medium, Ubuntu 22.04, 30 GB gp3 ⚠️ CHARGES START | 5 min | User | $0.04/hr | ⬜ |
-| 53 | Install Docker on EC2 | SSH → install Docker + compose | 10 min | Both | $0 | ⬜ |
-| 54 | Configure EC2 cost control | CloudWatch alarm + auto-stop if idle | 5 min | Both | $0 | ⬜ |
-| 55 | Copy compose + configs to EC2 | scp or git clone | 5 min | Both | $0 | ⬜ |
+| 52 | Launch EC2 instance | g4dn.xlarge, AL2023, 125 GB gp3 ⚠️ BLOCKED: GPU quota 0→4 | 5 min | User | $0.53/hr | ⏳ |
+| 53 | Install Docker on EC2 | ec2-user-data.sh handles bootstrap automatically | 10 min | Auto | $0 | ⬜ |
+| 54 | Configure EC2 cost control | CloudWatch $200 alarm coded in ec2_auto_stop.py | 5 min | Both | $0 | ✅ |
+| 55 | Copy compose + configs to EC2 | git clone via user-data script | 5 min | Auto | $0 | ⬜ |
 | 56 | Fill in .env on EC2 | RDS endpoint, password, S3 bucket | 5 min | Both | $0 | ⬜ |
-| 57 | Create RDS PostgreSQL | db.t3.micro ⚠️ CHARGES START ($0.018/hr) | 10 min | User | $0.018/hr | ⬜ |
+| 57 | Create RDS PostgreSQL | ✅ p053-mlflow-db.cxmsugggu12o.us-west-2.rds.amazonaws.com (STOPPED while waiting) | 10 min | User | $0.018/hr | 👤 |
 | 58 | Deploy compose on EC2 | `docker compose up -d` | 5 min | Both | $0 | ⬜ |
 | 59 | Verify MLflow UI on AWS | `curl http://<ec2-ip>:5001/...` | 2 min | Both | $0 | ⬜ |
 | 60 | Verify S3 access | `aws s3 ls s3://p053-mlflow-artifacts/` | 1 min | Both | $0 | ⬜ |
@@ -205,17 +209,17 @@
 
 ---
 
-## Cost Summary
+## Cost Summary (Updated)
 
-| Item | Month 1 | Month 2 | Total |
-|------|---------|---------|-------|
-| Colab Pro (A100) | $10 | $10 | $20 |
-| RDS db.t3.micro | $15 | $15 or $0 | $15-30 |
-| EC2 t3.medium (~30 hrs) | $1.25 | $0.50 | $1.75 |
-| EC2 t3.xlarge (--full, ~4 hrs) | $0.67 | $0 | $0.67 |
-| S3 (<5 GB) | $0.12 | $0.12 | $0.24 |
-| **Total** | **~$27** | **~$26** | **~$53** |
+| Item | Estimate | Actual So Far | Notes |
+|------|----------|---------------|-------|
+| Colab Pro (A100) | $10/mo | $10 | Day 1 training done |
+| RDS db.t3.micro | $0.018/hr | ~$0.50 | Created + stopped same day |
+| EC2 g4dn.xlarge (~8 hrs) | $0.526/hr | $0 | Blocked on GPU quota |
+| S3 (<5 GB) | $0.12/mo | <$0.01 | day1_champion.pt uploaded |
+| CloudWatch alarm | $0 | $0 | $200 threshold |
+| **Total estimate** | | | **~$72 USD** |
 
 ---
 
-*Last updated: 2026-06-29 — Day 1 A100 training complete (50ep, 201.7 min, AUC-ROC=0.816). CI fixed (commit 6b347ae). S3 artifacts uploaded. Next: EC2 launch → 40-day Airflow simulation.*
+*Last updated: 2026-07-07 — Phase 0+0b complete (commits aeb83e2, 072f877). RDS created & stopped. EC2 BLOCKED on GPU quota (0→4 vCPU request pending). IP updated to 119.234.92.99. Next: GPU quota approval → EC2 launch → 40-day simulation.*

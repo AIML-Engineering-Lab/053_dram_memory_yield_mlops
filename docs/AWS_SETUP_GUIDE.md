@@ -1,13 +1,13 @@
 # P053 — Complete AWS Setup Guide (First-Time AWS Users)
 
-> **Budget:** ~$7-10 total for the 40-day simulation (no free tier)  
+> **Budget:** $1,000 SGD (~$740 USD) total project budget  
 > **Time to setup:** ~30 minutes  
 > **Region:** us-west-2 (Oregon) — cheapest for EC2 + S3 (latency irrelevant for batch simulation)  
-> **Instance:** t3.medium ($0.0416/hr) for daily pipeline, g4dn.xlarge ($0.526/hr) for retrain only
+> **Instance:** g4dn.xlarge ($0.526/hr) — 4 vCPU, 16GB RAM, T4 GPU 16GB
 
 ---
 
-## ✅ Completed Steps (as of 2026-06-29)
+## ✅ Completed Steps (as of 2026-04-07)
 
 | Step | Status | Notes |
 |------|--------|-------|
@@ -18,9 +18,9 @@
 | 5. S3 Bucket | ✅ Done | `s3://p053-mlflow-artifacts` — day1_champion.pt uploaded |
 | 6. ECR Repo | ✅ Done | `718036735422.dkr.ecr.us-west-2.amazonaws.com/053-memory-yield-predictor` |
 | 7.1 Key Pair | ✅ Done | `p053-key` → `~/.ssh/p053-key.pem` |
-| 7.2 Security Group | ✅ Done | `sg-0f11ba29c1155cba3`, ports 22/5001/3000/8000/8080/9000 from 121.6.66.58 |
-| 7.3 EC2 Launch | ⬜ **NEXT** | t3.medium, costs $0.0416/hr — START when ready |
-| 8. RDS PostgreSQL | ⬜ Pending | db.t3.micro, costs $0.018/hr — after EC2 ready |
+| 7.2 Security Group | ✅ Done | `sg-0f11ba29c1155cba3`, ports 22/5001/3000/8000/8080/9000 from **119.234.92.99** |
+| 7.3 EC2 Launch | ⏳ **BLOCKED** | g4dn.xlarge — **GPU quota increase pending** (0→4 vCPUs for G instances) |
+| 8. RDS PostgreSQL | ✅ Done | `p053-mlflow-db.cxmsugggu12o.us-west-2.rds.amazonaws.com` (Postgres 17, db.t3.micro, **stopped to save costs**) |
 | 9. GitHub Secrets | ⬜ Pending | After EC2 IP known |
 
 ---

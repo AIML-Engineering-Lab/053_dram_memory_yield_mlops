@@ -1,21 +1,36 @@
 # AWS Infrastructure Guide — P053 Memory Yield Predictor
 
 > Step-by-step guide to setting up AWS services for production deployment.
-> Budget: ~$40/month (within the $50 total project budget).
+> **Budget:** $1,000 SGD (~$740 USD) total project budget.
+> **Architecture:** ALL ON AWS — g4dn.xlarge with T4 GPU for training + inference.
+> **Last Updated:** 2026-04-07 (Phase 0b complete, commit 072f877)  
+> **Blocker:** GPU quota increase pending (0→4 vCPUs for G instances). RDS created & stopped.
 
 ---
 
 ## 1. What AWS Services We Use (and Why)
 
-| Service | Purpose | Monthly Cost |
-|---------|---------|-------------|
-| **ECR** (Elastic Container Registry) | Store Docker images (API, MLflow) | ~$1 (storage) |
-| **RDS PostgreSQL** (t4g.micro) | Production MLflow tracking database | ~$12-15 |
-| **S3** | MLflow artifacts + DVC data versioning | ~$2-5 |
-| **EC2** (optional, t3.medium) | Run Docker Compose stack | ~$15-20 |
-| **IAM** | Access control for all services | Free |
+| Service | Instance | Purpose | Est. Cost |
+|---------|----------|---------|-----------|
+| **EC2** | g4dn.xlarge (4 vCPU, 16GB RAM, T4 GPU 16GB) | GPU training + 40-day sim + full Docker stack | $0.526/hr × ~100 hrs = ~$53 |
+| **RDS PostgreSQL** | db.t3.micro | Production MLflow tracking database | $0.018/hr × 720 hrs = ~$13 |
+| **S3** | p053-mlflow-artifacts | Models, data, drift reports, benchmarks | ~$5 |
+| **ECR** | 053-memory-yield-predictor | Store Docker images (API, MLflow, Airflow-GPU) | ~$1 |
+| **CloudWatch** | Billing alarm | Auto-stop at $500 threshold | Free |
+| **IAM** | p053-cicd-user | Access control for all services | Free |
 
-**Total: ~$30-35/month** — well within budget.
+**Total estimated: ~$72 USD** — well within $740 USD budget.
+
+### Why g4dn.xlarge (T4) instead of A100?
+- Our model is 317K params — T4 handles it comfortably (6GB VRAM used)
+- A100 requires p4d.24xlarge ($32.77/hr, 8 GPUs minimum) — 62× more expensive
+- T4 retrain: ~45 min ($0.39). A100 retrain: ~15 min ($8.19). Not worth it.
+- Day 1 initial training was done on Colab A100 (free). All retrains on T4.
+
+### Auto-Stop Protection
+- `src/ec2_auto_stop.py` stops EC2 after Phase 3 simulation completes
+- CloudWatch billing alarm triggers at $500 spend
+- EC2 user-data bootstraps everything — no manual SSH needed
 
 ---
 

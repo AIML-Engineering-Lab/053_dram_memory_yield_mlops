@@ -1,8 +1,13 @@
 # AWS Commands Execution Guide — P053
 
-> **Date:** 2025-06-28  
+> **Last Updated:** 2026-04-07  
 > **Account:** 718036735422 · Region: us-west-2 (Oregon)  
-> **Status:** Steps 1–7.2 complete. EC2 & RDS not yet provisioned.
+> **Status:** Steps 1–8 complete. RDS created (stopped). EC2 g4dn.xlarge **blocked on GPU quota** (0→4 vCPUs).  
+> **Instance:** g4dn.xlarge (4 vCPU, 16GB RAM, T4 GPU 16GB, $0.526/hr)  
+> **Budget:** $1,000 SGD (~$740 USD)  
+> **RDS Endpoint:** p053-mlflow-db.cxmsugggu12o.us-west-2.rds.amazonaws.com  
+> **Security Group IP:** 119.234.92.99/32 (updated 2026-04-07)  
+> **AMI:** ami-0e1c254c6491f13f2 (Amazon Linux 2023, kernel 6.18)
 
 ---
 

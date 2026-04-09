@@ -695,3 +695,57 @@ Colab → MLflow SQLite → Docker PostgreSQL retrolog → AWS RDS
 ```
 
 ---
+
+## 8. Phase 0b Decisions (2026-04-07, commit 072f877)
+
+### GPU Auto-Selector (src/gpu_selector.py)
+
+**Decision:** Build auto GPU selection based on model complexity AND data volume.
+
+| Trigger | GPU | Instance | $/hr | Reasoning |
+|---------|-----|----------|------|-----------|
+| <50M params AND <100M rows | T4 16GB | g4dn.xlarge | $0.53 | Our 317K model — cost-efficient |
+| 50M-500M params OR 100M-1B rows | V100 16GB | p3.2xlarge | $3.06 | Medium models, FP64 for science |
+| 500M-1.2B params | A10G 24GB | g5.2xlarge | $1.21 | Good VRAM/cost balance |
+| >1.2B params OR >1B rows | A100 80GB | p4d.24xlarge | $32.77 | LLM fine-tuning, massive data |
+
+**Why >1B rows also needs A100:** HBM bandwidth becomes the bottleneck — T4's 320 GB/s vs A100's 2,039 GB/s. DataLoader throughput on T4 can't feed the GPU fast enough at 1B+ rows. The GPU selector now considers BOTH model params AND data volume.
+
+**Interview story:** "Our system auto-detects when the current GPU is insufficient. For our 317K model on T4, it logs 'CURRENT GPU SUFFICIENT' in every retrain. But if we scale to a 1.2B-parameter model or 1B+ rows, it flags 'SWITCH REQUIRED: g4dn.xlarge → p4d.24xlarge' and can auto-provision the right instance."
+
+### Low-Data Drift Tagging
+
+**Decision:** When data < 10K rows, compute PSI drift metrics and log to MLflow for transparency — but NEVER trigger retraining.
+
+**Why:** PSI with <10K samples has high variance. A 0.25 PSI might be noise, not real drift. But logging it means we can:
+1. Review drift trends in MLflow even during data ramp-up
+2. Confirm drift was detected but intentionally suppressed
+3. Show auditors that the system is transparent, not blind
+
+**Implementation:** `drift_reliable: false` flag + `low_data_warning` message in drift report. Both `run_simulation.py` and `dag_daily_yield_pipeline.py` check this flag before retrain decisions.
+
+### RDS Auto-Stop
+
+**Decision:** Phase 3 cleanup now stops ALL resources: EC2 → RDS → NAT gateway delete.
+
+**Why stop RDS?** db.t3.micro at $0.018/hr = $13/month. When not running simulations, that's waste. RDS data persists when stopped. Restart takes ~5 min.
+
+**Caveat:** AWS auto-restarts stopped RDS after 7 days. If idle >7 days, must re-stop.
+
+### CloudWatch Alarm: $200 USD (was $500)
+
+**Decision:** Lowered billing alarm threshold from $500 to $200.
+
+**Why:** Our total estimated spend is $72 USD. $200 gives 2.8× safety margin. $500 was too far from actual expected costs — by the time it triggered, we'd have burned through 7× the estimate.
+
+### Security Group IP Update
+
+Old IP: 121.6.66.58 → New IP: 119.234.92.99 (dynamic ISP). All 6 ports updated. Note for production: use VPN with static IP or AWS Session Manager instead of IP-locked SSH.
+
+### GPU Quota Issue
+
+New AWS accounts default to 0 vCPUs for GPU instances (G, P, Inf families). Quota increase request submitted via AWS Console (Service Quotas → Running On-Demand G and VT instances → 4 vCPUs). Approval expected: 15 min to a few hours.
+
+**Lesson for interview:** "AWS has zero-GPU defaults for new accounts. We discovered this during deployment and had to request quota increases. In enterprise, these quotas are pre-negotiated with AWS account teams during the annual commit."
+
+---

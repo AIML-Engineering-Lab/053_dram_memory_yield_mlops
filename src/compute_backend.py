@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 class BackendName(str, Enum):
     AWS = "aws"
+    KAGGLE = "kaggle"
     COLAB = "colab"
     LOCAL = "local"
 
@@ -171,10 +172,11 @@ def get_training_backend(
 ) -> TrainingBackend:
     """Select the optimal training backend.
 
-    Priority: AWS EC2 → Google Colab → Local MacBook
+    Priority: Colab (if already there) → AWS EC2 → Kaggle Kernels → Local MacBook
+    With 2hr interactive waits (or Enter-to-skip) between Kaggle and Colab, and Colab and Local.
 
     Args:
-        force_backend: Override automatic selection ("aws", "colab", "local")
+        force_backend: Override automatic selection ("aws", "kaggle", "colab", "local")
         data_gb_per_day: Daily data volume in GB (>1000 = need A100)
 
     Returns:
@@ -188,24 +190,62 @@ def get_training_backend(
             return _build_colab_backend(data_gb_per_day)
         elif forced == BackendName.AWS:
             return _build_aws_backend()
+        elif forced == BackendName.KAGGLE:
+            return _build_kaggle_backend()
         else:
             return _build_local_backend()
 
-    # Auto-detect: are we already on Colab?
+    # ── Step 1: Already ON Colab → use T4/A100 directly ──────────────────────
     if _detect_colab():
         logger.info("[BACKEND] Running on Google Colab — using Colab GPU directly")
         return _build_colab_backend(data_gb_per_day)
 
-    # Try AWS first
+    # ── Step 2: AWS EC2 ───────────────────────────────────────────────────────
     ec2_info = _check_aws_ec2()
     if ec2_info:
         logger.info("[BACKEND] AWS EC2 available: %s (%s)",
                     ec2_info["instance_id"], ec2_info["instance_type"])
         return _build_aws_backend(ec2_info)
 
-    # AWS unavailable — check if user wants Colab fallback
-    logger.info("[BACKEND] AWS unavailable — falling back to local. "
-                "For GPU training, use NB04_colab_training.ipynb on Google Colab.")
+    logger.info("[BACKEND] AWS EC2 not available.")
+
+    # ── Step 3: Kaggle Kernels (automated, free 30hr/week T4) ─────────────────
+    try:
+        from src.kaggle_backend import check_kaggle_available
+        if check_kaggle_available():
+            logger.info("[BACKEND] Kaggle API available — using Kaggle GPU kernel")
+            return _build_kaggle_backend()
+        else:
+            logger.info("[BACKEND] Kaggle not configured (see scripts/kaggle_training/setup_kaggle_env.sh)")
+    except ImportError:
+        logger.warning("[BACKEND] kaggle_backend module not found")
+    except Exception as e:
+        logger.warning("[BACKEND] Kaggle check failed: %s", e)
+
+    # ── Step 4: Wait 2hrs / Enter, then fall to Colab manual ─────────────────
+    from src.kaggle_backend import interactive_wait_with_skip
+    interactive_wait_with_skip(
+        "AWS EC2 not running. Kaggle Kernels not configured.\n"
+        "  Options:\n"
+        "    A) Set up Kaggle: bash scripts/kaggle_training/setup_kaggle_env.sh\n"
+        "    B) Open NB04_colab_training.ipynb on Google Colab and run training there\n"
+        "       Then press Enter here to continue the simulation (metadata-only logging).",
+        wait_hours=2.0,
+    )
+
+    # Return colab backend info (caller gets metadata-only logging since we're not ON Colab)
+    logger.info("[BACKEND] Falling back to local after Colab wait.")
+
+    # ── Step 5: Local Mac (last resort) ──────────────────────────────────────
+    interactive_wait_with_skip(
+        "Colab wait expired or skipped.\n"
+        "  LAST RESORT: Training will run on local MacBook (MPS/CPU).\n"
+        "  This is SLOW — expected time: 8-24hrs for 50 epochs on 16M rows.\n"
+        "  Press Enter to accept local training, or resolve GPU access above.",
+        wait_hours=2.0,
+    )
+
+    logger.warning("[BACKEND] Using local MacBook as last resort. GPU strongly recommended.")
     return _build_local_backend()
 
 
@@ -239,6 +279,25 @@ def _build_aws_backend(ec2_info: Optional[dict] = None) -> TrainingBackend:
         env_overrides={
             "MLFLOW_TRACKING_URI": _get_mlflow_uri(BackendName.AWS),
             "MLFLOW_S3_ENDPOINT_URL": "",
+        },
+    )
+
+
+def _build_kaggle_backend() -> TrainingBackend:
+    """Build Kaggle Kernels backend configuration."""
+    return TrainingBackend(
+        name=BackendName.KAGGLE,
+        gpu_name="T4",
+        gpu_vram_gb=16.0,
+        mlflow_uri=_get_mlflow_uri(BackendName.COLAB),  # SQLite, same as Colab
+        instance_type="kaggle-kernel",
+        cost_per_hour=0.0,  # Free 30hr/week
+        reason="Kaggle Kernels: free T4 GPU, 30hr/week. Automated via API.",
+        supports_bf16=False,
+        recommended_batch_size=4096,
+        env_overrides={
+            "MLFLOW_TRACKING_URI": "sqlite:///mlflow.db",
+            "COMPUTE_BACKEND": "kaggle",
         },
     )
 

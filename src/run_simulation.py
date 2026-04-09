@@ -50,13 +50,18 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                    skip_spark: bool = False,
                    skip_kafka: bool = True,
                    backend: str = "auto",
-                   checkpoint: bool = False) -> dict:
+                   checkpoint: bool = False,
+                   sim_retrain_epochs: int = 10) -> dict:
     """
     Execute the full 40-day production simulation.
 
     Args:
-        backend: "auto", "aws", "colab", or "local" — controls WHERE training runs
+        backend: "auto", "aws", "kaggle", "colab", or "local" — controls WHERE training runs
         checkpoint: If True, save progress after each day and resume from last day
+        sim_retrain_epochs: Epochs per simulation retrain event.
+            10 = ~30-40min on T4 (recommended for demo runs).
+            0  = metadata-only, no actual training (fastest, good for --fast/--medium).
+            50 = full production quality (very slow, ~8-10hr per event on T4).
 
     Returns a timeline dict with per-day events for dashboard plotting.
     """
@@ -237,7 +242,8 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 )
 
                 # Log retrain event to MLflow
-                _log_retrain_to_mlflow(day, model_version, drift_result, days_since_retrain)
+                _log_retrain_to_mlflow(day, model_version, drift_result, days_since_retrain,
+                                       sim_retrain_epochs=sim_retrain_epochs)
             elif drift_result["features_critical"] >= 3:
                 reason = (f"staleness gate ({days_since_retrain}d < 30)"
                           if not low_data_blocked
@@ -341,12 +347,19 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
 
 
 def _log_retrain_to_mlflow(day: int, model_version: str,
-                           drift_result: dict, days_since_retrain: int):
+                           drift_result: dict, days_since_retrain: int,
+                           sim_retrain_epochs: int = 10):
     """Execute REAL GPU training and log to MLflow.
 
     Replaces the old stub that only logged metadata.
     Now calls train.py which runs actual PyTorch training on GPU
     with full MLflow experiment tracking.
+
+    Args:
+        sim_retrain_epochs: Epochs for simulation retrains. Keep low (5-10) so
+            T4 training completes in ~30-60min per retrain event. The 2-hour
+            `timeout` in subprocess.run would kill a full 50-epoch retrain.
+            Set 0 to skip actual training and log metadata only.
 
     Falls back to metadata-only logging if train.py fails or
     preprocessed data is not available (e.g., fast mode).
@@ -362,15 +375,22 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
     data_path = PROJECT_ROOT / "data" / "preprocessed_full.npz"
     training_succeeded = False
 
-    if data_path.exists():
+    if data_path.exists() and sim_retrain_epochs > 0:
         cmd = [
             sys.executable, "-m", "src.train",
             "--full",
+            "--epochs", str(sim_retrain_epochs),
             "--batch-size", "4096",
             "--run-name", run_name,
             "--context", "simulation-retrain",
         ]
-        print(f"    [RETRAIN] Launching GPU training: {' '.join(cmd)}")
+        print(f"    [RETRAIN] Launching GPU training ({sim_retrain_epochs} epochs): {' '.join(cmd)}")
+    elif sim_retrain_epochs == 0:
+        print(f"    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
+    elif not data_path.exists():
+        print(f"    [RETRAIN] No preprocessed data at {data_path}, logging metadata only")
+
+    if data_path.exists() and sim_retrain_epochs > 0:  # re-check for try block
 
         try:
             result = subprocess.run(
@@ -562,11 +582,16 @@ if __name__ == "__main__":
 
     # Compute backend
     parser.add_argument("--backend", type=str, default="auto",
-                        choices=["auto", "aws", "colab", "local"],
-                        help="Training backend: aws (EC2 GPU), colab (Google Colab), "
-                             "local (MacBook MPS/CPU), auto (try AWS→Colab→Local)")
+                        choices=["auto", "aws", "kaggle", "colab", "local"],
+                        help="Training backend: aws | kaggle (auto API) | colab | local | "
+                             "auto (tries: Colab-if-there → AWS → Kaggle → 2hr-wait → local)")
     parser.add_argument("--checkpoint", action="store_true",
                         help="Save progress after each day, resume if interrupted")
+    parser.add_argument("--sim-retrain-epochs", type=int, default=10,
+                        help="Epochs for each simulation retrain event. "
+                             "10 = ~30-40min on T4 (default). "
+                             "0 = metadata-only, fastest. "
+                             "50 = full production quality.")
 
     args = parser.parse_args()
 
@@ -588,4 +613,5 @@ if __name__ == "__main__":
         skip_kafka=not args.with_kafka,
         backend=args.backend,
         checkpoint=args.checkpoint,
+        sim_retrain_epochs=args.sim_retrain_epochs,
     )
