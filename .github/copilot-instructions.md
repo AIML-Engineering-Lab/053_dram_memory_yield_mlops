@@ -1,7 +1,7 @@
 # P053 — DRAM Memory Yield MLOps — Complete Project Context
 
 > **This file IS the project memory. When asked "what are we doing?" or "what's next?" — read this file.**
-> **Last updated: 2026-04-08**
+> **Last updated: 2026-04-09**
 
 ---
 
@@ -9,7 +9,7 @@
 
 **Title:** P053 — DRAM Memory Yield Predictor with Full MLOps Pipeline  
 **GitHub:** `https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops` (PUBLIC)  
-**Status:** Phase 0/0b DONE → Phase 2 AWS simulation BLOCKED on GPU quota → Colab fallback being built  
+**Status:** Phase 0/0b/0b+ DONE → Colab fallback BUILT → Ready to run simulation  
 **Target Role:** Principal Data Scientist / Principal GenAI Engineer at AMD, NVIDIA, Micron, Qualcomm  
 **Budget:** $1,000 SGD (~$740 USD) — "PLAN BIG DO BIG"
 
@@ -104,11 +104,42 @@ run_simulation.py (orchestrate 40-day sim)
 ```
 Cell 1: Clone repo, install deps
 Cell 2: Set AWS secrets (S3 upload still works from Colab)
-Cell 3: !python -m src.run_simulation --backend colab --checkpoint
-Cell 4: Results summary + S3 verification
+Cell 3: Verify GPU (T4 or A100 detection)
+Cell 4: !python -m src.run_simulation --fast --backend colab --checkpoint (TEST first)
+Cell 5: !python -m src.run_simulation --full --backend colab --checkpoint (PRODUCTION)
+Cell 6: Results summary + S3 verification
+Cell 7: Google Drive backup (optional)
 ```
 
 **MacBook does NOT need to stay on** during Colab execution (Colab Pro sessions run in cloud). But Colab Pro disconnects after ~90 min idle — keep tab active or use the checkpoint/resume feature.
+
+### How the 40-Day Simulation ACTUALLY Works (IMPORTANT)
+
+The simulation is **ONE command** that runs ALL 40 days in a loop:
+```bash
+python -m src.run_simulation --full --backend colab --checkpoint
+```
+
+This single command does EVERYTHING automatically:
+```
+for day in range(1, 41):
+    1. Generate daily data (1M-10M rows, variable)
+    2. Run batch inference with current champion model
+    3. Calculate drift metrics (PSI, feature importance shift)
+    4. IF drift detected AND data >10K rows:
+       → Trigger retrain on GPU (30-50 epochs)
+       → Run canary evaluation
+       → IF new model better: promote to champion
+       → IF new model worse: rollback to previous
+    5. Upload artifacts to S3
+    6. Save checkpoint (resume-safe if Colab disconnects)
+```
+
+**You do NOT run 40 cells or 40 commands.** You start it ONCE and it completes all 40 days.
+**If Colab disconnects:** Re-run the same command — `--checkpoint` resumes from the last completed day.
+
+**On AWS (when quota approved):** Same command runs inside Airflow DAG — truly 100% automated, no human needed.
+**On Colab:** 95% automated — you click "Run" once. Only manual step: re-run if disconnected.
 
 ---
 
@@ -196,6 +227,7 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 | ED-007 | AUC-PR as primary metric (not AUC-ROC) | At 1:160 imbalance, AUC-ROC inflates with TN count |
 | ED-041 | GPU auto-selector | Automated T4/V100/A10G/A100 selection by model params |
 | ED-042 | Low-data drift tagging | Tag don't retrain when <10K rows (drift unreliable) |
+| ED-043 | Compute backend fallback | AWS→Colab→Local chain. Built when AWS rejected quota. |
 
 ### The bfloat16 Story (Key Interview Material)
 - **float16 + GradScaler → DEATH SPIRAL:** Scale → 0, gradients → 0, loss collapses to constant
@@ -324,22 +356,112 @@ To open as standalone workspace:
 - Fixed queue_groups.json (`in{` → `{` typo)
 - Reverted g06 to "ready" (was accidentally posted)
 - GPU quota appeal submitted
-- Designed Colab fallback architecture
+- Designed + BUILT Colab fallback architecture:
+  - `src/compute_backend.py` — AWS→Colab→Local fallback chain
+  - `src/gpu_selector.py` — Added Colab GPU catalog (T4/A100)
+  - `src/run_simulation.py` — Added `--backend` and `--checkpoint` flags
+  - `notebooks/NB04_colab_training.ipynb` — Complete Colab training notebook
+  - ED-043 documented, TASKS_PLAN.md updated
 - Created this context file for standalone workspace use
+- Commits: `6feff7a` (feat: Colab fallback), `ae0170e` (docs: ED-043)
 - Decision: T4 for all training, A100 only when data >1TB/day
 - Decision: SQLite for Colab/local, RDS only when AWS active
+
+### Session 9 (April 9, 2026)
+- **ROOT CAUSE FOUND** for g05 LinkedIn mismatch:
+  - g05 post.txt was edited locally but NEVER committed to GitHub
+  - n8n reads from GitHub → posted the old shorter version (1,641 chars)
+  - Fix: pushed improved version (2,932 chars) and reset g05 to ready
+  - Removed filler line "18 plots. Interactive dashboard. Full report."
+  - Commits: `e851879` (push improved post.txt), `eafe62c` (remove filler)
+- Updated this context file with all Colab fallback details
+- n8n content source: `grouped_posts/{{ folder }}/post.txt` from GitHub API
+  - **LESSON:** Always `git add + commit + push` content changes before n8n trigger
 
 ---
 
 ## 13. NEXT STEPS (Priority Order)
 
-1. **Build Colab fallback** — `src/compute_backend.py` + `notebooks/NB04_colab_training.ipynb`
-2. **Update gpu_selector.py** — Add Colab GPU catalog
-3. **Update run_simulation.py** — Use compute_backend for training dispatch
-4. **Buy 100 CU PAYG** on Colab → run Phase 2 simulation on Colab T4
-5. **Wait for AWS GPU quota appeal** — if approved, switch back to AWS
-6. **Complete P5-P10** — simulation, report, content hub, final tag
+### ✅ ALREADY DONE (Session 8-9)
+- [x] `src/compute_backend.py` — AWS→Colab→Local fallback chain
+- [x] `src/gpu_selector.py` — Colab GPU catalog (T4/A100)
+- [x] `src/run_simulation.py` — `--backend` and `--checkpoint` flags
+- [x] `notebooks/NB04_colab_training.ipynb` — Colab training notebook
+- [x] `.github/copilot-instructions.md` — This standalone context file
+- [x] ED-043 documented, TASKS_PLAN.md updated
+- [x] g05 post.txt fixed and pushed to GitHub
+- [x] All 20/20 tests passing
+
+### 🔜 IMMEDIATE (User Action Required)
+1. **Delete duplicate g05 LinkedIn posts** (old short version posted Apr 7 + Apr 8)
+2. **Trigger n8n** to repost g05 with correct improved content
+3. **Buy 100 CU PAYG** on Colab (SGD 14.46 for 100 CU)
+4. **Run simulation on Colab:**
+   - Open `NB04_colab_training.ipynb` on Google Colab
+   - Select T4 GPU runtime
+   - Run cells 1-4 (`--fast` first to verify)
+   - Then run cell 5 (`--full` for production)
+5. **Wait for AWS GPU quota appeal** — if approved, switch back to AWS EC2
+
+### ⏳ AFTER SIMULATION COMPLETES
+6. Take simulation screenshots (drift timeline, retrain events, model versions)
+7. Update dashboard with real simulation metrics
+8. Update report HTML with simulation results
+9. Generate PDF with Playwright
+10. Update README with final results
+11. Content hub post for P053
+12. Final commit + tag v2.0.0
+13. Stop/delete AWS resources
 
 ---
 
-*This context file replaces the need for conversation history. Keep it updated.*
+## 14. OPENING 053 AS STANDALONE WORKSPACE
+
+### How to Open
+1. In VS Code: File → Open Folder → select `053_memory_yield_predictor/`
+2. This `.github/copilot-instructions.md` will auto-load as project context
+3. For Python: `python -m venv .venv && pip install -r requirements.txt`
+4. Or use parent venv: `source ../55_LinkedIn/.venv/bin/activate` (if still accessible)
+
+### What's Self-Contained
+- All source code in `src/` (33 modules)
+- All tests in `tests/` (20/20 passing)
+- All deploy configs (`deploy/docker/`, `deploy/aws/`, `deploy/k8s/`, `deploy/airflow/`)
+- All notebooks in `notebooks/` (NB01-NB04)
+- All documentation in `docs/` (12 files)
+- All assets in `assets/` (44 PNGs + 9 carousel slides)
+- `.github/copilot-instructions.md` — THIS FILE has all project context
+- `never_forget_copilot_instructions.md` — Non-negotiable rules
+- `TASKS_PLAN.md` — Detailed task breakdown (64/106 done)
+- `MASTER_PLAN.md` — High-level execution plan
+
+### What Needs External Access
+- **AWS CLI** — must be configured (`aws configure`)
+- **Colab** — open NB04 in browser, not locally
+- **Content Hub** — in sibling folder `../aiml-content-hub/` (separate repo)
+- **n8n Automation** — runs on n8n cloud, reads from GitHub
+
+### Key Commands (Quick Reference)
+```bash
+# Run tests
+python -m pytest tests/ -x -q
+
+# Check compute backend
+python -m src.compute_backend
+
+# GPU selector decision table
+python -m src.gpu_selector
+
+# Local simulation (fast test)
+python -m src.run_simulation --fast --backend local --checkpoint
+
+# AWS status check
+bash check_aws_services.sh
+
+# Check RDS status
+aws rds describe-db-instances --db-instance-identifier p053-mlflow-db --query 'DBInstances[0].DBInstanceStatus' --region us-west-2
+```
+
+---
+
+*This context file replaces the need for conversation history. Keep it updated after EVERY session.*
