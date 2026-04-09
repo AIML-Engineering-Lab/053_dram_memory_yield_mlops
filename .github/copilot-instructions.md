@@ -10,8 +10,7 @@
 **Title:** P053 — DRAM Memory Yield Predictor with Full MLOps Pipeline  
 **GitHub:** `https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops` (PUBLIC)  
 **Status:** Phase 0/0b/0b+ DONE → Colab fallback BUILT → Ready to run simulation  
-**Target Role:** Principal Data Scientist / Principal GenAI Engineer at AMD, NVIDIA, Micron, Qualcomm  
-**Budget:** $1,000 SGD (~$740 USD) — "PLAN BIG DO BIG"
+**Scope:** Production-grade MLOps pipeline demonstrating principal-level engineering
 
 ### What This Project Demonstrates
 - **16M-row DRAM semiconductor dataset** with 1:160 class imbalance (yield defects)
@@ -41,7 +40,7 @@
 1. **AWS IS PRIMARY.** Colab is a FALLBACK only when AWS GPU is unavailable.
 2. **GPU ALWAYS.** T4 minimum for all retraining. Never CPU training.
 3. **Full day's data** for retraining. NOT a subset.
-4. **Budget: $1000 SGD.** Track all costs.
+4. **Track all costs.** Budget-conscious decisions.
 5. **All data/models/artifacts on S3.** Nothing stays only on MacBook.
 6. **Auto-stop EC2 + RDS + NAT Gateway** after simulation completes.
 7. **CloudWatch billing alarm at $200 USD.**
@@ -86,7 +85,7 @@ run_simulation.py (orchestrate 40-day sim)
 ### MLflow Tracking Strategy
 | Backend | When | URI |
 |---------|------|-----|
-| **RDS PostgreSQL** | AWS EC2 is running | `postgresql://mlflow:<pw>@p053-mlflow-db...rds.amazonaws.com:5432/mlflow` |
+| **RDS PostgreSQL** | AWS EC2 is running | See `.env.aws` for connection string |
 | **Local SQLite** | Colab or local fallback | `sqlite:///mlflow.db` |
 | **Local PostgreSQL** | Docker compose local | `postgresql://mlflow:mlflow@localhost:5432/mlflow` |
 
@@ -149,18 +148,17 @@ for day in range(1, 41):
 | Service | Status | Details |
 |---------|--------|---------|
 | **S3** | ACTIVE | `p053-mlflow-artifacts` (versioned, day1_champion.pt uploaded) |
-| **ECR** | ACTIVE | `718036735422.dkr.ecr.us-west-2.amazonaws.com/053-memory-yield-predictor` |
-| **RDS** | STOPPED | `p053-mlflow-db.cxmsugggu12o.us-west-2.rds.amazonaws.com` (Postgres 17, db.t3.micro) |
-| **EC2** | NOT LAUNCHED | GPU quota 0→4 vCPUs — REJECTED, appeal submitted |
-| **EIP** | SAFE | 34.214.51.57 (eipalloc-0ae0823a57419a290) — RDS-managed, do NOT release |
+| **ECR** | ACTIVE | See deploy/aws/.env.aws for full URI |
+| **RDS** | STOPPED | `p053-mlflow-db` (Postgres 17, db.t3.micro) — see .env.aws for endpoint |
+| **EC2** | NOT LAUNCHED | GPU quota REJECTED, appeal submitted |
+| **EIP** | SAFE | RDS-managed, do NOT release |
 
 ### AWS Account
-- **Account ID:** 718036735422
 - **Region:** us-west-2 (Oregon)
-- **Security Group:** sg-0f11ba29c1155cba3 (6 ports)
+- **Security Group:** See `.env.aws` for IDs
 - **Key Pair:** p053-key (~/.ssh/p053-key.pem)
 - **Local IP (dynamic):** Check with `curl -s checkip.amazonaws.com` each session
-- **Budget alarm:** $200 USD (activates on EC2 bootstrap)
+- **Budget alarm:** CloudWatch billing alarm active
 
 ### GPU Quota Status
 - **Requested:** "Running On-Demand G and VT instances" → 4 vCPUs
@@ -294,7 +292,7 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 
 ## 9. CRITICAL FACTS (DO NOT FORGET)
 
-1. **EIP 34.214.51.57** = RDS ServiceManaged — do NOT release, no separate charge
+1. **EIP** = RDS ServiceManaged — do NOT release, no separate charge
 2. **AWS auto-restarts stopped RDS after 7 days** — re-stop if waiting >7 days
 3. **MacBook NOT needed** during EC2 simulation (autonomous) or Colab training (cloud)
 4. **Password:** `.env.aws` has a placeholder — fill in at deployment time. If password contains `@`, URL-encode as `%40`
@@ -303,7 +301,7 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 7. **CI pipeline:** ruff lint + pytest 20/20 + Docker build — Run #14+ passes
 8. **Colab Pro:** SGD 14.46/month, 100 CU/month. Buy 100 CU PAYG pack for ~22 CU of T4 training.
 9. **Day 1 champion already on S3:** `s3://p053-mlflow-artifacts/models/day1_champion.pt`
-10. **Interactive AWS walkthrough format:** Agent gives command → user runs → pastes output → agent verifies → next command
+10. **All sensitive IDs/endpoints stored in `.env.aws`** — never hardcode in source files
 
 ---
 
