@@ -371,6 +371,17 @@ def evaluate(model, loader, criterion, device):
 
 def find_best_threshold(y_true, y_proba):
     """Find threshold maximizing F1."""
+    y_true = np.asarray(y_true)
+    y_proba = np.asarray(y_proba).ravel()
+    valid = np.isfinite(y_proba)
+
+    if not valid.any():
+        raise RuntimeError("No finite probabilities available for threshold selection")
+
+    if not valid.all():
+        y_true = y_true[valid]
+        y_proba = y_proba[valid]
+
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
     f1s = 2 * precisions * recalls / (precisions + recalls + 1e-8)
     best_idx = np.argmax(f1s)

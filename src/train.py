@@ -193,6 +193,32 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
     return avg_loss, auc_pr
 
 
+def sanitize_probabilities(y_true, proba, split_name, min_valid_ratio=0.999):
+    """Validate probability arrays before threshold selection and metrics."""
+    y_true = np.asarray(y_true)
+    proba = np.asarray(proba).ravel()
+    valid = np.isfinite(proba)
+    invalid_count = int((~valid).sum())
+
+    if invalid_count == len(proba):
+        raise RuntimeError(f"{split_name} probabilities are all non-finite")
+
+    if invalid_count > 0:
+        valid_ratio = valid.mean()
+        print(
+            f"  [WARN] {split_name}: {invalid_count}/{len(proba)} non-finite probabilities "
+            f"({100 * (1 - valid_ratio):.4f}% invalid)",
+            flush=True,
+        )
+        if valid_ratio < min_valid_ratio:
+            raise RuntimeError(
+                f"{split_name} produced too many non-finite probabilities "
+                f"({invalid_count}/{len(proba)}). Reduce T4 batch size or learning rate."
+            )
+
+    return y_true[valid], proba[valid], np.nan_to_num(proba, nan=0.0, posinf=1.0, neginf=0.0), invalid_count
+
+
 @torch.no_grad()
 def evaluate_split(model, X, y, feature_names, device, criterion, hw, batch_size=2048):
     """Evaluate model on a data split."""
@@ -214,6 +240,7 @@ def evaluate_split(model, X, y, feature_names, device, criterion, hw, batch_size
     all_logits = []
     total_loss = 0
     n_batches = 0
+    non_finite_loss_batches = 0
 
     for i in range(0, len(X_tab), batch_size):
         xt = X_tab[i:i + batch_size].to(device)
@@ -225,12 +252,22 @@ def evaluate_split(model, X, y, feature_names, device, criterion, hw, batch_size
             loss = criterion(logits, lb)
 
         all_logits.append(logits.cpu())
-        total_loss += loss.item()
-        n_batches += 1
+        loss_val = loss.item()
+        if np.isfinite(loss_val):
+            total_loss += loss_val
+            n_batches += 1
+        else:
+            non_finite_loss_batches += 1
 
     logits = torch.cat(all_logits)
     proba = torch.sigmoid(logits).float().numpy()
-    avg_loss = total_loss / n_batches
+    avg_loss = total_loss / n_batches if n_batches > 0 else float("nan")
+    if non_finite_loss_batches > 0:
+        print(
+            f"  [WARN] eval: {non_finite_loss_batches} batches had non-finite loss; "
+            "using only finite-loss batches for avg val loss",
+            flush=True,
+        )
     proba_flat = proba.ravel()
     valid = ~np.isnan(proba_flat)
     if valid.all():
@@ -301,6 +338,14 @@ def run_training(args):
     )
 
     # ─── Optimizer + Scheduler ───
+    if hw["use_gradscaler"] and args.batch_size > 1024:
+        print(
+            f"[STABILITY] float16 GPU run requested batch_size={args.batch_size}; "
+            "capping to 1024 to avoid T4/V100 AMP instability",
+            flush=True,
+        )
+        args.batch_size = 1024
+
     lr = args.lr or TRAINING["lr"]
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=TRAINING["weight_decay"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -424,20 +469,27 @@ def run_training(args):
                 model, X_split, y_split, feature_names, device, criterion, hw,
             )
 
-            if split_name == "val":
-                threshold = find_best_threshold(y_split, proba)
+            y_valid, proba_valid, proba_safe, invalid_count = sanitize_probabilities(
+                y_split, proba, split_name,
+            )
 
-            y_pred = (proba >= threshold).astype(int)
+            if split_name == "val":
+                threshold = find_best_threshold(y_valid, proba_valid)
+
+            y_pred = (proba_safe >= threshold).astype(int)
             cm = confusion_matrix(y_split, y_pred)
             tn, fp, fn, tp = cm.ravel()
+
+            auc_roc = roc_auc_score(y_valid, proba_valid) if len(np.unique(y_valid)) > 1 else 0.0
 
             results[split_name] = {
                 "precision": float(precision_score(y_split, y_pred, zero_division=0)),
                 "recall": float(recall_score(y_split, y_pred, zero_division=0)),
                 "f1": float(f1_score(y_split, y_pred, zero_division=0)),
                 "auc_pr": float(split_auc),
-                "auc_roc": float(roc_auc_score(y_split, proba)),
+                "auc_roc": float(auc_roc),
                 "threshold": float(threshold),
+                "non_finite_probs": invalid_count,
                 "tp": int(tp), "fp": int(fp), "fn": int(fn), "tn": int(tn),
             }
 
