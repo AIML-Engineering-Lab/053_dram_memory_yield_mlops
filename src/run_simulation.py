@@ -317,8 +317,10 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 json.dump(ckpt_data, f, indent=2)
 
         # Progress line
-        events_str = ", ".join(day_record["events"][:3]) if day_record["events"] else "—"
-        print(f"  Day {day:>2} [{cfg['scenario']:>22}] {day_elapsed:>5.1f}s | {events_str}")
+        day_date = (sim_start + timedelta(days=day - 1)).strftime("%Y-%m-%d")
+        events_str = ", ".join(day_record["events"][:4]) if day_record["events"] else "—"
+        parquet_mb = day_record.get('parquet_mb', 0)
+        print(f"  Day {day:>2} | {day_date} | {rows_per_day:>10,} rows | {parquet_mb:>6.1f} MB | {day_elapsed:>7.1f}s | {events_str}", flush=True)
 
     # ── SAVE TIMELINE ──
     total_elapsed = time.time() - t0
@@ -396,7 +398,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             "--run-name", run_name,
             "--context", "simulation-retrain",
         ]
-        print(f"    [RETRAIN] Launching GPU training ({sim_retrain_epochs} epochs): {' '.join(cmd)}")
+        print(f"    [RETRAIN] Launching GPU training ({sim_retrain_epochs} epochs): {' '.join(cmd)}", flush=True)
     elif sim_retrain_epochs == 0:
         print(f"    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
     elif not data_path.exists():
@@ -405,9 +407,11 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
     if data_path.exists() and sim_retrain_epochs > 0:  # re-check for try block
 
         try:
+            # Stream stdout/stderr to parent so epoch progress is visible in Colab
             result = subprocess.run(
                 cmd,
-                capture_output=True,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
                 text=True,
                 cwd=str(PROJECT_ROOT),
                 timeout=28800,  # 8h: 50 epochs × 530s/epoch ≈ 7.4h on T4
@@ -427,12 +431,11 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
                     print(f"    [RETRAIN] GPU training complete: "
                           f"AUC-PR={benchmark['results']['val']['auc_pr']:.4f}, "
                           f"GPU={benchmark['gpu_name']}, "
-                          f"Time={benchmark['total_train_time_min']:.1f}min")
+                          f"Time={benchmark['total_train_time_min']:.1f}min", flush=True)
                     print(f"    [RETRAIN] MLflow run: {benchmark['mlflow_run_id']}")
             else:
                 print(f"    [RETRAIN] GPU training failed (exit {result.returncode}), "
                       f"falling back to metadata logging")
-                print(f"    [RETRAIN] STDERR: {result.stderr[-500:]}")
         except subprocess.TimeoutExpired:
             print("    [RETRAIN] Training timed out after 8h, falling back to metadata logging")
         except Exception as e:

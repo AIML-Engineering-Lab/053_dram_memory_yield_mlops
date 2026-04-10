@@ -315,8 +315,8 @@ def run_training(args):
         patience_counter = 0
         model_save_path = ARTIFACTS_DIR / f"hybrid_best{suffix}.pt"
 
-        print(f"\n{'Ep':>4} {'TrLoss':>8} {'VaLoss':>8} {'TrAUC':>8} {'VaAUC':>8} {'LR':>10} {'Time':>7}")
-        print("-" * 70)
+        print(f"\n{'Ep':>4} {'TrLoss':>8} {'VaLoss':>8} {'TrAUC':>8} {'VaAUC':>8} {'LR':>10} {'Time':>7}", flush=True)
+        print("-" * 70, flush=True)
 
         for epoch in range(1, args.epochs + 1):
             t_epoch = time.time()
@@ -364,12 +364,12 @@ def run_training(args):
             else:
                 patience_counter += 1
 
-            if epoch <= 5 or epoch % 5 == 0 or improved:
-                print(
-                    f"{epoch:>4} {train_loss:>8.4f} {val_loss:>8.4f} "
-                    f"{train_auc:>8.4f} {val_auc:>8.4f} {current_lr:>10.6f} "
-                    f"{epoch_time:>6.1f}s{improved}"
-                )
+            print(
+                f"{epoch:>4} {train_loss:>8.4f} {val_loss:>8.4f} "
+                f"{train_auc:>8.4f} {val_auc:>8.4f} {current_lr:>10.6f} "
+                f"{epoch_time:>6.1f}s{improved}",
+                flush=True,
+            )
 
             if patience_counter >= TRAINING["patience"]:
                 print(f"\nEarly stopping at epoch {epoch} (best: {best_epoch})")
