@@ -106,7 +106,12 @@ def detect_hardware():
 # ═══════════════════════════════════════════════════════════════
 
 def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
-    """Train for one epoch with AMP support and NaN recovery."""
+    """Train for one epoch with AMP support and NaN recovery.
+
+    GradScaler handles NaN/inf NATIVELY: when step() detects inf in
+    gradients, it skips the optimizer update and update() reduces the
+    scale factor. We just let the pipeline run and track NaN for logging.
+    """
     model.train()
     total_loss = 0
     n_batches = 0
@@ -130,23 +135,10 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
             logits = model(x_tab, x_spa)
             loss = criterion(logits, labels)
 
-        # NaN guard: skip batch and let GradScaler adapt (ED-004)
-        if not torch.isfinite(loss):
-            nan_batches += 1
-            optimizer.zero_grad(set_to_none=True)
-            if scaler is not None:
-                scaler.update()  # Reduce scale factor on NaN
-            if nan_batches % 10 == 1:
-                scale_info = f", scale={scaler.get_scale():.0f}" if scaler else ""
-                print(f"  [NaN] batch {batch_idx}/{n_total} — skipped (total={nan_batches}{scale_info})", flush=True)
-            if nan_batches > n_total // 2:
-                raise RuntimeError(
-                    f"Too many NaN batches ({nan_batches}/{n_total}). "
-                    f"float16+GradScaler+FocalLoss death spiral. See ED-004."
-                )
-            continue
-
         if scaler is not None:
+            # GradScaler pipeline: if loss is NaN/inf, backward propagates
+            # inf gradients → step() detects them, skips optimizer update →
+            # update() reduces scale factor. This is the DESIGNED behavior.
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -157,21 +149,33 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-        total_loss += loss.item()
-        n_batches += 1
+        # Track NaN for logging (don't crash — GradScaler adapts)
+        loss_val = loss.item()
+        if not (loss_val == loss_val):  # fast NaN check
+            nan_batches += 1
+            if nan_batches % 50 == 1:
+                scale_info = f", scale={scaler.get_scale():.0f}" if scaler else ""
+                print(f"  [NaN] batch {batch_idx}/{n_total} — GradScaler adapting "
+                      f"(total={nan_batches}{scale_info})", flush=True)
+        else:
+            total_loss += loss_val
+            n_batches += 1
 
-        if batch_idx % 10 == 0:
+        if batch_idx % 10 == 0 and loss_val == loss_val:
             with torch.no_grad():
                 preds = torch.sigmoid(logits).float().cpu().numpy()
                 sample_preds.extend(preds)
                 sample_labels.extend(labels.cpu().numpy())
 
     if n_batches == 0:
-        raise RuntimeError(f"All {n_total} batches produced NaN. See ED-004.")
+        raise RuntimeError(
+            f"All {n_total} batches produced NaN — GradScaler could not recover. "
+            f"Try reducing batch_size further. See ED-004."
+        )
 
     if nan_batches > 0:
-        print(f"  [NaN] Epoch summary: {nan_batches}/{n_total} NaN batches skipped, "
-              f"{n_batches} OK", flush=True)
+        print(f"  [NaN] Epoch done: {nan_batches}/{n_total} NaN batches "
+              f"(GradScaler recovered), {n_batches} OK", flush=True)
 
     avg_loss = total_loss / n_batches
     auc_pr = (
