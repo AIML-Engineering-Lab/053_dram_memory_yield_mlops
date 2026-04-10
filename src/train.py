@@ -164,8 +164,10 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
         if batch_idx % 10 == 0 and loss_val == loss_val:
             with torch.no_grad():
                 preds = torch.sigmoid(logits).float().cpu().numpy()
-                sample_preds.extend(preds)
-                sample_labels.extend(labels.cpu().numpy())
+                # Skip if preds contain NaN (model weights unstable while GradScaler adapts)
+                if not np.any(np.isnan(preds)):
+                    sample_preds.extend(preds)
+                    sample_labels.extend(labels.cpu().numpy())
 
     if n_batches == 0:
         raise RuntimeError(
@@ -178,11 +180,16 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
               f"(GradScaler recovered), {n_batches} OK", flush=True)
 
     avg_loss = total_loss / n_batches
-    auc_pr = (
-        average_precision_score(np.array(sample_labels), np.array(sample_preds))
-        if np.array(sample_labels).sum() > 0
-        else 0
-    )
+
+    # Filter any remaining NaN predictions before metric calculation
+    preds_arr = np.array(sample_preds).ravel() if sample_preds else np.array([])
+    labels_arr = np.array(sample_labels).ravel() if sample_labels else np.array([])
+    valid = ~np.isnan(preds_arr) if preds_arr.size > 0 else np.array([], dtype=bool)
+    if valid.any() and labels_arr[valid].sum() > 0:
+        auc_pr = average_precision_score(labels_arr[valid], preds_arr[valid])
+    else:
+        auc_pr = 0.0
+
     return avg_loss, auc_pr
 
 
@@ -224,7 +231,14 @@ def evaluate_split(model, X, y, feature_names, device, criterion, hw, batch_size
     logits = torch.cat(all_logits)
     proba = torch.sigmoid(logits).float().numpy()
     avg_loss = total_loss / n_batches
-    auc_pr = average_precision_score(y, proba) if y.sum() > 0 else 0
+    proba_flat = proba.ravel()
+    valid = ~np.isnan(proba_flat)
+    if valid.all():
+        auc_pr = average_precision_score(y, proba_flat) if y.sum() > 0 else 0
+    elif valid.any() and y[valid].sum() > 0:
+        auc_pr = average_precision_score(y[valid], proba_flat[valid])
+    else:
+        auc_pr = 0.0
 
     return avg_loss, auc_pr, proba
 
