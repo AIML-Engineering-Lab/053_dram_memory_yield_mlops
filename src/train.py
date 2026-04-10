@@ -106,10 +106,11 @@ def detect_hardware():
 # ═══════════════════════════════════════════════════════════════
 
 def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
-    """Train for one epoch with AMP support."""
+    """Train for one epoch with AMP support and NaN recovery."""
     model.train()
     total_loss = 0
     n_batches = 0
+    nan_batches = 0
     sample_preds = []
     sample_labels = []
     n_total = len(loader)
@@ -129,6 +130,22 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
             logits = model(x_tab, x_spa)
             loss = criterion(logits, labels)
 
+        # NaN guard: skip batch and let GradScaler adapt (ED-004)
+        if not torch.isfinite(loss):
+            nan_batches += 1
+            optimizer.zero_grad(set_to_none=True)
+            if scaler is not None:
+                scaler.update()  # Reduce scale factor on NaN
+            if nan_batches % 10 == 1:
+                scale_info = f", scale={scaler.get_scale():.0f}" if scaler else ""
+                print(f"  [NaN] batch {batch_idx}/{n_total} — skipped (total={nan_batches}{scale_info})", flush=True)
+            if nan_batches > n_total // 2:
+                raise RuntimeError(
+                    f"Too many NaN batches ({nan_batches}/{n_total}). "
+                    f"float16+GradScaler+FocalLoss death spiral. See ED-004."
+                )
+            continue
+
         if scaler is not None:
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -143,22 +160,18 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
         total_loss += loss.item()
         n_batches += 1
 
-        # NaN guard: detect float16 death spiral early (ED-004)
-        if torch.isnan(loss):
-            print(f"\n  *** NaN loss detected at batch {batch_idx}/{n_total}! ***")
-            print(f"  Likely cause: batch_size too large for float16+GradScaler+FocalLoss")
-            print(f"  GradScaler scale: {scaler.get_scale() if scaler else 'N/A'}")
-            raise RuntimeError(
-                f"NaN loss at batch {batch_idx}. "
-                f"Try reducing batch_size (current loader batch={x_tab.shape[0]}). "
-                f"See ED-004 in ENGINEERING_DECISIONS.md"
-            )
-
         if batch_idx % 10 == 0:
             with torch.no_grad():
                 preds = torch.sigmoid(logits).float().cpu().numpy()
                 sample_preds.extend(preds)
                 sample_labels.extend(labels.cpu().numpy())
+
+    if n_batches == 0:
+        raise RuntimeError(f"All {n_total} batches produced NaN. See ED-004.")
+
+    if nan_batches > 0:
+        print(f"  [NaN] Epoch summary: {nan_batches}/{n_total} NaN batches skipped, "
+              f"{n_batches} OK", flush=True)
 
     avg_loss = total_loss / n_batches
     auc_pr = (
@@ -276,8 +289,8 @@ def run_training(args):
         optimizer, T_max=args.epochs, eta_min=1e-6,
     )
 
-    # ─── GradScaler (float16 only) ───
-    scaler = torch.amp.GradScaler("cuda") if hw["use_gradscaler"] else None
+    # ─── GradScaler (float16 only, low init_scale for FocalLoss stability) ───
+    scaler = torch.amp.GradScaler("cuda", init_scale=1024) if hw["use_gradscaler"] else None
 
     # ═══════════════════════════════════════════════════════════
     # MLflow — Start Run

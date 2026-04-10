@@ -64,9 +64,10 @@ class SimulationDayLogger:
         fh.setFormatter(fmt)
         self.logger.addHandler(fh)
 
-        # Also log to console
+        # Console handler: WARNING+ only unless P053_LOG_VERBOSE is set
+        # (file handler still captures all INFO/DEBUG)
         ch = logging.StreamHandler()
-        ch.setLevel(logging.INFO)
+        ch.setLevel(logging.INFO if os.environ.get("P053_LOG_VERBOSE") else logging.WARNING)
         ch.setFormatter(fmt)
         self.logger.addHandler(ch)
 

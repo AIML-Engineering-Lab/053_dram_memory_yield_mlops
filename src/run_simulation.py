@@ -230,8 +230,6 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 retrain_num = len(retrain_history) + 2  # v2, v3, ...
                 model_version = f"v{retrain_num}_retrained_day{day}"
                 day_record["model_version"] = model_version
-                retrain_history.append({"day": day, "new_model": model_version})
-                last_retrain_day = day
 
                 day_logger.log_retrain_decision(
                     should_retrain=True,
@@ -241,9 +239,18 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                     days_since_retrain=days_since_retrain,
                 )
 
-                # Log retrain event to MLflow
-                _log_retrain_to_mlflow(day, model_version, drift_result, days_since_retrain,
-                                       sim_retrain_epochs=sim_retrain_epochs)
+                # Execute training — only update staleness if training succeeds
+                training_ok = _log_retrain_to_mlflow(
+                    day, model_version, drift_result, days_since_retrain,
+                    sim_retrain_epochs=sim_retrain_epochs)
+                if training_ok:
+                    retrain_history.append({"day": day, "new_model": model_version})
+                    last_retrain_day = day
+                else:
+                    # Training failed — don't block future retries
+                    model_version = retrain_history[-1]["new_model"] if retrain_history else "v1_original"
+                    day_record["model_version"] = model_version
+                    day_record["events"].append("RETRAIN_FAILED")
             elif drift_result["features_critical"] >= 3:
                 reason = (f"staleness gate ({days_since_retrain}d < 30)"
                           if not low_data_blocked
@@ -350,8 +357,10 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
 
 def _log_retrain_to_mlflow(day: int, model_version: str,
                            drift_result: dict, days_since_retrain: int,
-                           sim_retrain_epochs: int = 10):
+                           sim_retrain_epochs: int = 10) -> bool:
     """Execute REAL GPU training and log to MLflow.
+
+    Returns True if training succeeded, False otherwise.
 
     Replaces the old stub that only logged metadata.
     Now calls train.py which runs actual PyTorch training on GPU
@@ -398,13 +407,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             "--run-name", run_name,
             "--context", "simulation-retrain",
         ]
-        print(f"    [RETRAIN] Launching GPU training ({sim_retrain_epochs} epochs): {' '.join(cmd)}", flush=True)
-    elif sim_retrain_epochs == 0:
-        print(f"    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
-    elif not data_path.exists():
-        print(f"    [RETRAIN] No preprocessed data at {data_path}, logging metadata only")
-
-    if data_path.exists() and sim_retrain_epochs > 0:  # re-check for try block
+        print(f"    [RETRAIN] Launching GPU training ({sim_retrain_epochs} epochs)", flush=True)
 
         try:
             # Stream stdout/stderr to parent so epoch progress is visible in Colab
@@ -440,6 +443,8 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             print("    [RETRAIN] Training timed out after 8h, falling back to metadata logging")
         except Exception as e:
             print(f"    [RETRAIN] Training error: {e}, falling back to metadata logging")
+    elif sim_retrain_epochs == 0:
+        print(f"    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
     else:
         print(f"    [RETRAIN] No preprocessed data at {data_path}, logging metadata only")
 
@@ -479,6 +484,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
 
         print(f"    MLflow: logged retrain metadata {run.info.run_id[:8]}...")
 
+    return training_succeeded
 
 def _standalone_drift_check(day: int) -> dict:
     """
