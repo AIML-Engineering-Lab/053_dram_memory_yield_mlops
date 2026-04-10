@@ -356,9 +356,9 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
     with full MLflow experiment tracking.
 
     Args:
-        sim_retrain_epochs: Epochs for simulation retrains. Keep low (5-10) so
-            T4 training completes in ~30-60min per retrain event. The 2-hour
-            `timeout` in subprocess.run would kill a full 50-epoch retrain.
+        sim_retrain_epochs: Epochs for simulation retrains. Default 50 for
+            production quality. On T4, each epoch takes ~530s, so 50 epochs
+            ≈ 4.9h (with early stopping at ~33 epochs ≈ 4.9h).
             Set 0 to skip actual training and log metadata only.
 
     Falls back to metadata-only logging if train.py fails or
@@ -375,12 +375,24 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
     data_path = PROJECT_ROOT / "data" / "preprocessed_full.npz"
     training_succeeded = False
 
+    # GPU-aware batch size: T4 (cc<8) needs 2048 to avoid float16 NaN,
+    # A100+ (cc>=8) can use 4096 with bfloat16
+    batch_size = "2048"  # safe default for T4
+    try:
+        import torch as _torch
+        if _torch.cuda.is_available():
+            cc = _torch.cuda.get_device_capability()[0]
+            batch_size = "4096" if cc >= 8 else "2048"
+            print(f"    [RETRAIN] GPU compute capability {cc} → batch_size={batch_size}")
+    except Exception:
+        pass
+
     if data_path.exists() and sim_retrain_epochs > 0:
         cmd = [
             sys.executable, "-m", "src.train",
             "--full",
             "--epochs", str(sim_retrain_epochs),
-            "--batch-size", "4096",
+            "--batch-size", batch_size,
             "--run-name", run_name,
             "--context", "simulation-retrain",
         ]
@@ -398,7 +410,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
                 capture_output=True,
                 text=True,
                 cwd=str(PROJECT_ROOT),
-                timeout=7200,
+                timeout=28800,  # 8h: 50 epochs × 530s/epoch ≈ 7.4h on T4
             )
             if result.returncode == 0:
                 training_succeeded = True
@@ -422,7 +434,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
                       f"falling back to metadata logging")
                 print(f"    [RETRAIN] STDERR: {result.stderr[-500:]}")
         except subprocess.TimeoutExpired:
-            print("    [RETRAIN] Training timed out after 2h, falling back to metadata logging")
+            print("    [RETRAIN] Training timed out after 8h, falling back to metadata logging")
         except Exception as e:
             print(f"    [RETRAIN] Training error: {e}, falling back to metadata logging")
     else:

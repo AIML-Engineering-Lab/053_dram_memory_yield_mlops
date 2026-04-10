@@ -143,6 +143,17 @@ def train_one_epoch(model, loader, criterion, optimizer, device, scaler, hw):
         total_loss += loss.item()
         n_batches += 1
 
+        # NaN guard: detect float16 death spiral early (ED-004)
+        if torch.isnan(loss):
+            print(f"\n  *** NaN loss detected at batch {batch_idx}/{n_total}! ***")
+            print(f"  Likely cause: batch_size too large for float16+GradScaler+FocalLoss")
+            print(f"  GradScaler scale: {scaler.get_scale() if scaler else 'N/A'}")
+            raise RuntimeError(
+                f"NaN loss at batch {batch_idx}. "
+                f"Try reducing batch_size (current loader batch={x_tab.shape[0]}). "
+                f"See ED-004 in ENGINEERING_DECISIONS.md"
+            )
+
         if batch_idx % 10 == 0:
             with torch.no_grad():
                 preds = torch.sigmoid(logits).float().cpu().numpy()
