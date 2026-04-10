@@ -240,17 +240,20 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 )
 
                 # Execute training — only update staleness if training succeeds
-                training_ok = _log_retrain_to_mlflow(
+                retrain_status = _log_retrain_to_mlflow(
                     day, model_version, drift_result, days_since_retrain,
                     sim_retrain_epochs=sim_retrain_epochs)
-                if training_ok:
+                if retrain_status == "succeeded":
                     retrain_history.append({"day": day, "new_model": model_version})
                     last_retrain_day = day
                 else:
-                    # Training failed — don't block future retries
+                    # Retrain skipped or failed — keep champion and don't block future retries.
                     model_version = retrain_history[-1]["new_model"] if retrain_history else "v1_original"
                     day_record["model_version"] = model_version
-                    day_record["events"].append("RETRAIN_FAILED")
+                    if retrain_status == "failed":
+                        day_record["events"].append("RETRAIN_FAILED")
+                    else:
+                        day_record["events"].append("RETRAIN_SKIPPED")
             elif drift_result["features_critical"] >= 3:
                 reason = (f"staleness gate ({days_since_retrain}d < 30)"
                           if not low_data_blocked
@@ -357,10 +360,10 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
 
 def _log_retrain_to_mlflow(day: int, model_version: str,
                            drift_result: dict, days_since_retrain: int,
-                           sim_retrain_epochs: int = 10) -> bool:
+                           sim_retrain_epochs: int = 10) -> str:
     """Execute REAL GPU training and log to MLflow.
 
-    Returns True if training succeeded, False otherwise.
+    Returns one of: "succeeded", "skipped", or "failed".
 
     Replaces the old stub that only logged metadata.
     Now calls train.py which runs actual PyTorch training on GPU
@@ -385,16 +388,21 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
     # Attempt REAL GPU training
     data_path = PROJECT_ROOT / "data" / "preprocessed_full.npz"
     training_succeeded = False
+    training_status = "failed"
 
-    # GPU-aware batch size: T4 (cc<8) needs 2048 to avoid float16 NaN,
-    # A100+ (cc>=8) can use 4096 with bfloat16
-    batch_size = "2048"  # safe default for T4
+    # T4/V100 float16 retrains need conservative settings to avoid GradScaler collapse.
+    batch_size = "1024"
+    learning_rate = "2e-4"
     try:
         import torch as _torch
         if _torch.cuda.is_available():
             cc = _torch.cuda.get_device_capability()[0]
-            batch_size = "4096" if cc >= 8 else "2048"
-            print(f"    [RETRAIN] GPU compute capability {cc} → batch_size={batch_size}")
+            if cc >= 8:
+                batch_size = "4096"
+                learning_rate = "1e-3"
+            print(
+                f"    [RETRAIN] GPU compute capability {cc} → batch_size={batch_size}, lr={learning_rate}"
+            )
     except Exception:
         pass
 
@@ -404,6 +412,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             "--full",
             "--epochs", str(sim_retrain_epochs),
             "--batch-size", batch_size,
+            "--lr", learning_rate,
             "--run-name", run_name,
             "--context", "simulation-retrain",
         ]
@@ -421,6 +430,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             )
             if result.returncode == 0:
                 training_succeeded = True
+                training_status = "succeeded"
                 # Read benchmark for metrics
                 import glob as _glob
                 benchmark_files = sorted(
@@ -435,7 +445,9 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
                           f"AUC-PR={benchmark['results']['val']['auc_pr']:.4f}, "
                           f"GPU={benchmark['gpu_name']}, "
                           f"Time={benchmark['total_train_time_min']:.1f}min", flush=True)
-                    print(f"    [RETRAIN] MLflow run: {benchmark['mlflow_run_id']}")
+                    mlflow_run_id = benchmark.get("mlflow_run_id")
+                    if mlflow_run_id:
+                        print(f"    [RETRAIN] MLflow run: {mlflow_run_id}")
             else:
                 print(f"    [RETRAIN] GPU training failed (exit {result.returncode}), "
                       f"falling back to metadata logging")
@@ -444,8 +456,10 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
         except Exception as e:
             print(f"    [RETRAIN] Training error: {e}, falling back to metadata logging")
     elif sim_retrain_epochs == 0:
+        training_status = "skipped"
         print(f"    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
     else:
+        training_status = "skipped"
         print(f"    [RETRAIN] No preprocessed data at {data_path}, logging metadata only")
 
     # Fallback: log metadata to MLflow if training didn't run
@@ -458,6 +472,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             "model_version": model_version,
             "trigger": "drift_detected",
             "training_executed": "false",
+            "training_status": training_status,
         }) as run:
             mlflow.log_params({
                 "simulation.day": day,
@@ -479,12 +494,12 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
                 f"{drift_result['features_critical']} features exceeded PSI>0.2. "
                 f"Days since last retrain: {days_since_retrain}. "
                 f"Model: {model_version}. "
-                f"Training data not available — metadata logged only."
+                f"Training status: {training_status}. Metadata logged only."
             )
 
         print(f"    MLflow: logged retrain metadata {run.info.run_id[:8]}...")
 
-    return training_succeeded
+    return training_status
 
 def _standalone_drift_check(day: int) -> dict:
     """

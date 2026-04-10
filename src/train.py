@@ -346,7 +346,15 @@ def run_training(args):
         )
         args.batch_size = 1024
 
-    lr = args.lr or TRAINING["lr"]
+    requested_lr = TRAINING["lr"] if args.lr is None else args.lr
+    lr = requested_lr
+    if hw["use_gradscaler"] and args.lr is None and requested_lr >= 3e-4:
+        lr = 2e-4
+        print(
+            f"[STABILITY] float16 GPU run defaulted to lr={requested_lr}; "
+            f"overriding to {lr} to avoid T4/V100 GradScaler collapse",
+            flush=True,
+        )
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=TRAINING["weight_decay"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=args.epochs, eta_min=1e-6,
@@ -530,6 +538,7 @@ def run_training(args):
             "amp_dtype": hw["amp_dtype"],
             "use_gradscaler": hw["use_gradscaler"],
             "batch_size": args.batch_size,
+            "learning_rate": float(lr),
             "model_params": n_params,
             "train_rows": len(y_train),
             "epochs_run": len(epoch_times),
