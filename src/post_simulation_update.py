@@ -61,8 +61,8 @@ def validate_simulation_results() -> bool:
     else:
         all_ok &= _check("simulation_timeline.json", False, "NOT FOUND — copy from Google Drive")
 
-    # Drift reports
-    drift_files = list(DRIFT_REPORT_DIR.glob("day_*.json")) if DRIFT_REPORT_DIR.exists() else []
+    # Drift reports (files may be named day_*.json or drift_day_*.json)
+    drift_files = list(DRIFT_REPORT_DIR.glob("*day_*.json")) if DRIFT_REPORT_DIR.exists() else []
     all_ok &= _check(
         f"drift_reports/",
         len(drift_files) >= 30,
