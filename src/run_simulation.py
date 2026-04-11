@@ -119,7 +119,7 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
         print(f"  Backend:  {backend_info.name.value} ({backend_info.gpu_name})")
         print(f"  MLflow:   {backend_info.mlflow_uri[:60]}")
     else:
-        print(f"  Backend:  auto (AWS → Colab → Local)")
+        print("  Backend:  auto (AWS → Colab → Local)")
     if checkpoint:
         print(f"  Checkpoint: enabled {'(resuming)' if start_day > 1 else '(fresh)'}")
     print(f"{'='*70}\n")
@@ -127,6 +127,8 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
     for day in range(start_day, end_day + 1):
         day_t0 = time.time()
         cfg = get_drift_config(day)
+        day_date = (sim_start + timedelta(days=day - 1)).strftime("%Y-%m-%d")
+        print(f"  ▶ Day {day:2d}/40 | {day_date} | {cfg['scenario']}", flush=True)
 
         # Initialize comprehensive daily logger
         scale = "phase2"  # Default; overridden by SIMULATION_SCALE env var
@@ -146,6 +148,7 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
         gen_t0 = time.time()
         parquet_path = generate_day(day, n_rows=rows_per_day)
         day_record["parquet_mb"] = round(parquet_path.stat().st_size / 1e6, 1)
+        print(f"    ✓ Data: {rows_per_day:,} rows | {day_record['parquet_mb']:.1f} MB | {time.time()-gen_t0:.1f}s", flush=True)
         day_logger.log_data_generation(
             rows=rows_per_day, parquet_mb=day_record["parquet_mb"],
             scenario=cfg["scenario"], elapsed_sec=round(time.time() - gen_t0, 1),
@@ -240,6 +243,7 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 )
 
                 # Execute training — only update staleness if training succeeds
+                print(f"    🔁 RETRAIN triggered → {model_version} ({sim_retrain_epochs} epochs)", flush=True)
                 retrain_status = _log_retrain_to_mlflow(
                     day, model_version, drift_result, days_since_retrain,
                     sim_retrain_epochs=sim_retrain_epochs)
@@ -300,11 +304,13 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 day_record["s3_uploaded"] = n_uploaded
                 day_record["events"].append(f"s3_uploaded_{n_uploaded}_files")
                 day_logger.log_s3_upload(n_files=n_uploaded, status="uploaded")
+                print(f"    ☁ S3: {n_uploaded} files uploaded", flush=True)
             else:
                 day_logger.log_s3_upload(n_files=0, status="skipped")
         except Exception as e:
             day_record["events"].append(f"s3_skip: {e}")
             day_logger.log_s3_upload(n_files=0, status="error", error=str(e))
+            print(f"    ⚠ S3 skipped: {e}", flush=True)
 
         day_elapsed = time.time() - day_t0
         day_record["elapsed_sec"] = round(day_elapsed, 1)
@@ -327,10 +333,9 @@ def run_simulation(start_day: int = 1, end_day: int = 40,
                 json.dump(ckpt_data, f, indent=2)
 
         # Progress line
-        day_date = (sim_start + timedelta(days=day - 1)).strftime("%Y-%m-%d")
         events_str = ", ".join(day_record["events"][:4]) if day_record["events"] else "—"
         parquet_mb = day_record.get('parquet_mb', 0)
-        print(f"  Day {day:>2} | {day_date} | {rows_per_day:>10,} rows | {parquet_mb:>6.1f} MB | {day_elapsed:>7.1f}s | {events_str}", flush=True)
+        print(f"  ✅ Day {day:2d} done | {day_elapsed:>6.1f}s | {events_str}", flush=True)
 
     # ── SAVE TIMELINE ──
     total_elapsed = time.time() - t0
@@ -457,7 +462,7 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
             print(f"    [RETRAIN] Training error: {e}, falling back to metadata logging")
     elif sim_retrain_epochs == 0:
         training_status = "skipped"
-        print(f"    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
+        print("    [RETRAIN] sim_retrain_epochs=0: skipping GPU training, logging metadata only")
     else:
         training_status = "skipped"
         print(f"    [RETRAIN] No preprocessed data at {data_path}, logging metadata only")
