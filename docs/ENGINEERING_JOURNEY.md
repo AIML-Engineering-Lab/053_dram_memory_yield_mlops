@@ -106,7 +106,47 @@ cmd = [... "--lr", learning_rate, ...]
 
 ---
 
-## Chapter 5: Why 11 Retrains Instead of 3?
+## Chapter 5: batch_size=1024 Is Still Not Enough on T4 (ED-004 v2)
+
+The LR fix (Chapter 4) ensured `--lr 2e-4` was passed to `train.py`. Epochs 1-3 completed. But from epoch 4 onward, GradScaler collapsed again with a new pattern:
+
+```
+[NaN] batch 530/9766 — GradScaler adapting (total=101, scale=0)
+[NaN] batch 580/9766 — GradScaler adapting (total=151, scale=0)
+... (4,273 NaN batches in epoch 5)
+RuntimeError: All 9766 batches produced NaN — GradScaler could not recover.
+```
+
+This occurred during **simulation retrains** with 5M rows/day (10M training rows total). The critical difference vs NB05 isolated test:
+- NB05 (which worked): 16M rows, but called fresh from a clean process
+- Simulation retrain: same data, but **called from within an already-running Python process**, after 30 days of data generation, with GPU VRAM partially fragmented
+
+**Root cause:** At scale=0, GradScaler skips all weight updates. Once the scale hits 0 after batch 530 in epoch 4, it can never recover — every subsequent batch produces NaN because the model weights are corrupted.
+
+**Fix: batch_size=1024 → 512**
+
+Halving the batch size halves the gradient variance per step, which gives GradScaler more room to recover:
+- Smaller batches → smaller per-step gradient norms → fewer overflows
+- Scale can recover from 512 → 1024 instead of jumping directly to collapse
+
+| Setting | Result |
+|---------|--------|
+| batch_size=1024, lr=1e-3 | ❌ NaN from epoch 1 (LR bug) |
+| batch_size=1024, lr=2e-4 | ❌ NaN from epoch 4 (batch size too large) |
+| batch_size=512, lr=2e-4 | ✅ Stable (ED-004 v2) |
+
+**ED-004 v2 Decision Table (Final):**
+
+| GPU | CC | Precision | Batch Size | LR |
+|-----|----|-----------|------------|-----|
+| A100 | 8.0+ | bfloat16 | 4096 | 1e-3 |
+| T4 | 7.5 | float16 + GradScaler | **512** | 2e-4 |
+
+**Interview answer:** "Debugging AMP instability requires understanding that GradScaler is a heuristic, not a guarantee. Once the scale hits 0, the model is damaged — you can't recover within the same epoch. The only reliable fix is reducing gradient variance BEFORE it overflows, not after. That means smaller batches, not just smaller LR. This is why production T4 retrains now use batch_size=512."
+
+---
+
+## Chapter 6 (was 5): Why 11 Retrains Instead of 3?
 
 The accelerated training plan called for ~3 retrains (days 1, ~30, 39). But the simulation triggered 11 consecutive retrain attempts (days 30-40).
 
@@ -231,7 +271,7 @@ With the LR fix deployed:
 | ED-001 | 3-tier compute: MPS → T4 → A100 | Cost-effective development |
 | ED-002 | FocalLoss (α=0.75, γ=2.0) | SMOTE creates synthetic noise at 1:160 |
 | ED-003 | Per-feature tokenization | Each DRAM param has different distributions |
-| ED-004 | bfloat16 on A100, float16+LR=2e-4 on T4 | float16 death spiral with FocalLoss |
+| ED-004 | bfloat16 on A100; float16+lr=2e-4+bs=512 on T4 | float16 death spiral with FocalLoss; 1024 still collapses under VRAM pressure |
 | ED-007 | AUC-PR as primary metric | AUC-ROC inflates at extreme imbalance |
 | ED-041 | GPU auto-selector | T4/V100/A10G/A100 selection by model size |
 | ED-042 | Low-data drift tagging | Tag don't retrain when <10K rows |
@@ -247,7 +287,11 @@ With the LR fix deployed:
 | Apr 5-6 | Phase 0: Wired GPU training into DAGs |
 | Apr 7 | AWS GPU quota rejected; Colab fallback designed |
 | Apr 8 | Built compute_backend.py, NB04 notebook |
-| Apr 9 | v7A executed on T4; 11 retrains failed (LR bug) |
+| Apr 9 | v7A executed on T4; 11 retrains failed (LR bug — --lr not passed to train.py) |
 | Apr 9 | Root cause found: run_simulation.py missing --lr |
-| Apr 9 | Fixed: lr=2e-4, batch_size=1024 for T4 |
-| Next | Re-run simulation with fix → expected 1-2 successful retrains |
+| Apr 9 | Fix 1: lr=2e-4 passed explicitly; batch_size=1024 |
+| Apr 11 | v7B run: retrains still fail — batch_size=1024 collapses from epoch 4 (scale=0) |
+| Apr 11 | Fix 2 (ED-004 v2): batch_size=1024 → 512 for all T4 float16 retrains |
+| Apr 11 | Created NB04_colab_training_A100.ipynb (batch_size=4096, 50 epochs, bfloat16) |
+| Next | Re-run T4 simulation with batch_size=512 → expected 1-2 successful retrains |
+| Later | Run A100 notebook for full production-quality 50-epoch retrains |

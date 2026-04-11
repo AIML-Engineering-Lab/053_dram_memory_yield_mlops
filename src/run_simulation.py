@@ -395,8 +395,9 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
     training_succeeded = False
     training_status = "failed"
 
-    # T4/V100 float16 retrains need conservative settings to avoid GradScaler collapse.
-    batch_size = "1024"
+    # T4/V100 float16 retrains: batch_size=512 (ED-004 v2 — 1024 still causes NaN spiral on T4).
+    # A100/H100 (cc>=8): batch_size=4096, bfloat16 is safe.
+    batch_size = "512"
     learning_rate = "2e-4"
     try:
         import torch as _torch
