@@ -454,6 +454,18 @@ def _log_retrain_to_mlflow(day: int, model_version: str,
                     mlflow_run_id = benchmark.get("mlflow_run_id")
                     if mlflow_run_id:
                         print(f"    [RETRAIN] MLflow run: {mlflow_run_id}")
+
+                # Auto-upload model .pt to S3
+                from src.config import ARTIFACTS_DIR
+                model_pt = ARTIFACTS_DIR / "hybrid_best_full.pt"
+                if model_pt.exists():
+                    try:
+                        from src.s3_utils import S3ArtifactManager
+                        s3 = S3ArtifactManager()
+                        s3_uri = s3.upload_model(day, str(model_pt), version_tag=model_version)
+                        print(f"    ☁ Model uploaded to {s3_uri}", flush=True)
+                    except Exception as e:
+                        print(f"    ⚠ Model S3 upload failed: {e}", flush=True)
             else:
                 print(f"    [RETRAIN] GPU training failed (exit {result.returncode}), "
                       f"falling back to metadata logging")

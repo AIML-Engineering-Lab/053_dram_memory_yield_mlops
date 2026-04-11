@@ -1,9 +1,11 @@
 # Data (large files tracked by DVC)
 data/*.parquet
 data/*.npz
+data/*.db
 !data/*.dvc
 data/production/
 data/drift_reports/
+data/simulation_checkpoint.json
 
 # ML artifacts
 mlruns/
@@ -12,10 +14,13 @@ mlflow.db
 mlflow_colab.db
 models/*.pt
 models/*.onnx
+src/artifacts/*.pt
 
 # Model checkpoints & GPU artifacts (downloaded from Colab)
 notebooks/checkpoints/
 notebooks/gpu_artifacts/
+notebooks/archive/
+notebooks/A100/
 *.zip
 
 # Python
@@ -40,22 +45,13 @@ Thumbs.db
 
 # Generator scripts (should be deleted after use)
 _gen_*.py
-
-# Simulation logs
 simulation_*.log
-data/logs/
-
-# Reference-only docs (HTML guides, PDFs, planning MDs)
-docs/PyTorch_Advanced_Guide.html
-docs/Big_Data_Concepts_Guide.html
-docs/Cloud_Infrastructure_Guide.html
 docs/commnds_execution_log.txt
-docs/ACCELERATED_TRAINING_PLAN.md
-docs/REASONING_INFORMATION.md
-docs/TERMINOLOGY_GUIDE.md
+
+# MCP config (local only)
+mcp/
+
+# Internal planning docs (not for public repo)
 never_forget_copilot_instructions.md
-
-# Generator/temp scripts (should be deleted, not committed)
-_gen_*.py
-simulation_medium.log
-docs/commnds_execution_log.txt
+MASTER_PLAN.md
+TASKS_PLAN.md
