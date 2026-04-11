@@ -82,6 +82,17 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0d111
   <div class="chart-box"><div class="chart-title">Deployment Architecture Stack</div><div id="chart-deploy"></div></div>
 </div>
 
+<!-- ═══════ SECTION: 40-DAY SIMULATION ═══════ -->
+<div class="section-header">40-Day Production Simulation</div>
+<div class="note">
+  <strong>Live data:</strong> Simulation runs 40 days of production traffic with injected drift, automated retraining, canary deployment, and rollback scenarios.
+</div>
+<div class="charts">
+  <div class="chart-box full"><div class="chart-title">Failure Rate Over 40 Days (Drift → Retrain → Recovery)</div><div id="chart-sim-failure" style="height:320px"></div></div>
+  <div class="chart-box"><div class="chart-title">PSI Drift Severity by Day</div><div id="chart-sim-psi" style="height:320px"></div></div>
+  <div class="chart-box"><div class="chart-title">Event Timeline</div><div id="chart-sim-events" style="height:320px"></div></div>
+</div>
+
 <div class="footer">
   P053 Memory Yield Predictor &mdash; AIML Engineering Lab &mdash; Principal-Level Portfolio Project
 </div>
@@ -262,6 +273,118 @@ Plotly.newPlot('chart-deploy',[{
   text:stack_layers.map(()=>'✓ Built'),textposition:'inside',textfont:{color:'#fff',size:11}
 }],{...layout_base,xaxis:{...layout_base.xaxis,title:'Completion %',range:[0,120]},
   yaxis:{...layout_base.yaxis,autorange:'reversed'},height:340,margin:{l:150,r:20,t:10,b:40}},noConfig);
+// ═══════════════════════════════════════════════
+// 40-DAY SIMULATION CHARTS
+// ═══════════════════════════════════════════════
+// Load simulation_timeline.json and render charts
+(async function(){
+  let timeline;
+  try{
+    const resp=await fetch('../data/simulation_timeline.json');
+    timeline=await resp.json();
+  }catch(e){
+    // Fallback placeholder if file not found
+    ['chart-sim-failure','chart-sim-psi','chart-sim-events'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.innerHTML='<p style="color:#8b949e;padding:40px;text-align:center">Run the 40-day simulation first to populate these charts.<br><code>python -m src.run_simulation --fast</code></p>';
+    });
+    return;
+  }
+
+  const days=timeline.days||[];
+  const dayNums=days.map(d=>d.day);
+
+  // --- Failure Rate Chart ---
+  const failRates=days.map(d=>d.failure_rate_pct||d.fail_rate||0);
+  const barColors=days.map(d=>{
+    const s=(d.scenario||'').toLowerCase();
+    if(s.includes('retrain')||s.includes('recover'))return '#3fb950';
+    if(s.includes('bad')||s.includes('sudden')||s.includes('worsening'))return '#f85149';
+    if(s.includes('drift')||s.includes('threshold')||s.includes('continued'))return '#f0883e';
+    if(s.includes('false'))return '#bc8cff';
+    return '#58a6ff';
+  });
+
+  // Retrain event shapes
+  const retrainShapes=[];
+  days.forEach(d=>{
+    const evts=d.events||[];
+    if(evts.some(e=>e.includes('RETRAIN_TRIGGERED'))){
+      retrainShapes.push({type:'line',x0:d.day,x1:d.day,y0:0,y1:1,yref:'paper',
+        line:{color:evts.some(e=>e.includes('FAILED'))?'#f85149':'#3fb950',width:1.5,dash:'dot'}});
+    }
+    if(evts.some(e=>e.includes('ROLLBACK'))){
+      retrainShapes.push({type:'line',x0:d.day,x1:d.day,y0:0,y1:1,yref:'paper',
+        line:{color:'#f0883e',width:2,dash:'dashdot'}});
+    }
+  });
+
+  Plotly.newPlot('chart-sim-failure',[{
+    x:dayNums,y:failRates,type:'bar',
+    marker:{color:barColors,line:{color:'#30363d',width:0.5}},
+    hovertemplate:'Day %{x}<br>Fail Rate: %{y:.2f}%<extra></extra>'
+  }],{...layout_base,height:320,shapes:retrainShapes,
+    xaxis:{...layout_base.xaxis,title:'Simulation Day',dtick:5},
+    yaxis:{...layout_base.yaxis,title:'Failure Rate (%)'},
+    annotations:[{x:0.02,y:0.95,xref:'paper',yref:'paper',text:'Blue=Steady | Orange=Drift | Red=Critical | Green=Recovery | Purple=False Alarm',
+      font:{size:9,color:'#8b949e'},showarrow:false,xanchor:'left'}]
+  },noConfig);
+
+  // --- PSI Drift Chart ---
+  // Load drift reports to get average PSI per day
+  let driftDays=[],avgPsi=[];
+  try{
+    for(const d of days){
+      if(d.day<9)continue; // drift reports start at day 9
+      try{
+        const dr=await fetch(`../data/drift_reports/drift_day_${String(d.day).padStart(2,'0')}.json`);
+        if(dr.ok){
+          const rpt=await dr.json();
+          const psiVals=Object.values(rpt.feature_psi||{});
+          driftDays.push(d.day);
+          avgPsi.push(psiVals.length?psiVals.reduce((a,b)=>a+b,0)/psiVals.length:0);
+        }
+      }catch(e){}
+    }
+  }catch(e){}
+
+  if(driftDays.length>0){
+    Plotly.newPlot('chart-sim-psi',[{
+      x:driftDays,y:avgPsi,type:'scatter',mode:'lines+markers',
+      line:{color:'#f0883e',width:2},marker:{size:5,color:avgPsi.map(v=>v>0.2?'#f85149':v>0.1?'#f0883e':'#3fb950')},
+      hovertemplate:'Day %{x}<br>Avg PSI: %{y:.3f}<extra></extra>'
+    }],{...layout_base,height:320,
+      xaxis:{...layout_base.xaxis,title:'Day'},
+      yaxis:{...layout_base.yaxis,title:'Avg PSI'},
+      shapes:[
+        {type:'line',x0:driftDays[0],x1:driftDays[driftDays.length-1],y0:0.1,y1:0.1,line:{color:'#f0883e',width:1,dash:'dash'}},
+        {type:'line',x0:driftDays[0],x1:driftDays[driftDays.length-1],y0:0.2,y1:0.2,line:{color:'#f85149',width:1,dash:'dash'}}
+      ],
+      annotations:[
+        {x:driftDays[driftDays.length-1],y:0.1,text:'Warning',font:{size:9,color:'#f0883e'},showarrow:false,xanchor:'left',xshift:5},
+        {x:driftDays[driftDays.length-1],y:0.2,text:'Critical',font:{size:9,color:'#f85149'},showarrow:false,xanchor:'left',xshift:5}
+      ]
+    },noConfig);
+  }
+
+  // --- Event Timeline ---
+  const eventTypes=['RETRAIN_TRIGGERED','RETRAIN_FAILED','BAD_MODEL_DEPLOYED','CANARY_FAILED','ROLLBACK'];
+  const eventColors={'RETRAIN_TRIGGERED':'#3fb950','RETRAIN_FAILED':'#f85149','BAD_MODEL_DEPLOYED':'#f85149','CANARY_FAILED':'#f0883e','ROLLBACK':'#bc8cff'};
+  const traces=eventTypes.map(et=>{
+    const xs=[],ys=[];
+    days.forEach(d=>{
+      if((d.events||[]).some(e=>e.includes(et))){xs.push(d.day);ys.push(et.replace(/_/g,' '));}
+    });
+    return {x:xs,y:ys,type:'scatter',mode:'markers',name:et.replace(/_/g,' '),
+      marker:{size:10,color:eventColors[et],symbol:'diamond'},
+      hovertemplate:'Day %{x}<extra>%{y}</extra>'};
+  }).filter(t=>t.x.length>0);
+
+  Plotly.newPlot('chart-sim-events',traces,{...layout_base,height:320,showlegend:false,
+    xaxis:{...layout_base.xaxis,title:'Simulation Day',dtick:5},
+    yaxis:{...layout_base.yaxis,categoryorder:'array',categoryarray:eventTypes.map(e=>e.replace(/_/g,' ')).reverse()}
+  },noConfig);
+})();
 
 </script>
 </body>

@@ -149,14 +149,14 @@ def trigger_training_kernel(
 
     try:
         api.kernels_push_cli(folder=str(KERNEL_DIR))
-        print(f"  [KAGGLE] ✅ Kernel pushed and queued.")
+        print("  [KAGGLE] ✅ Kernel pushed and queued.")
     except Exception as e:
         logger.error("[KAGGLE] Kernel push failed: %s", e)
         print(f"  [KAGGLE] ❌ Push failed: {e}")
-        print(f"  [KAGGLE]   Possible fixes:")
-        print(f"  [KAGGLE]   1. Check kernel-metadata.json has your Kaggle username")
-        print(f"  [KAGGLE]   2. Verify ~/.kaggle/kaggle.json is valid")
-        print(f"  [KAGGLE]   3. Run: bash scripts/kaggle_training/setup_kaggle_env.sh")
+        print("  [KAGGLE]   Possible fixes:")
+        print("  [KAGGLE]   1. Check kernel-metadata.json has your Kaggle username")
+        print("  [KAGGLE]   2. Verify ~/.kaggle/kaggle.json is valid")
+        print("  [KAGGLE]   3. Run: bash scripts/kaggle_training/setup_kaggle_env.sh")
         return False
 
     # Poll for completion
@@ -194,7 +194,7 @@ def trigger_training_kernel(
 
     elapsed_min = (time.time() - start_time) / 60
     print(f"  [KAGGLE] ⏰ Timeout after {elapsed_min:.0f}min (limit: {max_wait_minutes}min).")
-    print(f"  [KAGGLE]   Kernel may still be running.")
+    print("  [KAGGLE]   Kernel may still be running.")
     print(f"  [KAGGLE]   Check: https://www.kaggle.com/code/{username}/{kernel_slug}")
     return False
 
@@ -212,7 +212,7 @@ def _verify_s3_artifacts(run_name: str) -> None:
                   f"at s3://{bucket}/models/{run_name}/")
         else:
             print(f"  [KAGGLE] ⚠️  No S3 artifacts found at s3://{bucket}/models/{run_name}/")
-            print(f"  [KAGGLE]   The kernel may not have uploaded results. Check kernel logs.")
+            print("  [KAGGLE]   The kernel may not have uploaded results. Check kernel logs.")
     except Exception as e:
         logger.warning("[KAGGLE] S3 artifact verification failed: %s", e)
 
@@ -236,9 +236,9 @@ def interactive_wait_with_skip(message: str, wait_hours: float = 2.0) -> None:
     print(message)
     if sys.stdin.isatty():
         print(f"\n  ⏱  Waiting up to {wait_hours:.0f}h for the situation to resolve.")
-        print(f"  ↩  Press Enter at any time to skip waiting and continue.")
+        print("  ↩  Press Enter at any time to skip waiting and continue.")
     else:
-        print(f"  (Non-interactive mode — short pause only)")
+        print("  (Non-interactive mode — short pause only)")
     print(border)
 
     # Non-interactive (CI/CD, Airflow, piped): just pause briefly
@@ -273,6 +273,6 @@ def interactive_wait_with_skip(message: str, wait_hours: float = 2.0) -> None:
         time.sleep(0.5)
 
     if skipped.is_set():
-        print(f"  [SKIP] Proceeding to next fallback immediately.")
+        print("  [SKIP] Proceeding to next fallback immediately.")
     else:
         print(f"  [TIMEOUT] {wait_hours:.0f}h wait expired. Proceeding to next fallback.")

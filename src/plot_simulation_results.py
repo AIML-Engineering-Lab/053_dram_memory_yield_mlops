@@ -14,6 +14,7 @@ Generates:
     p53_36_pandas_vs_spark.png      — The money demo (OOM vs success)
     p53_37_simulation_summary.png   — Executive summary card
     p53_38_psi_waterfall.png        — PSI per feature across key days
+    p53_39_distribution_evolution.png — Feature distributions shifting over 40 days
 """
 
 import json
@@ -125,24 +126,33 @@ def plot_drift_timeline(timeline: dict, drift_reports: dict):
     sim_start = datetime.strptime(SIMULATION["start_date"], "%Y-%m-%d")
     event_days_in_drift = {d: i for i, d in enumerate(days)}
 
+    # Collect unique events per day, dedup to avoid label overlap
     events_to_mark = []
+    seen_days = set()
     for d_record in timeline["days"]:
         day = d_record["day"]
         if day not in event_days_in_drift:
             continue
         idx = event_days_in_drift[day]
-        for evt in d_record.get("events", []):
-            if "RETRAIN" in evt:
-                events_to_mark.append((idx, "★ RETRAIN", GREEN))
-            elif "BAD_MODEL" in evt:
-                events_to_mark.append((idx, "BAD DEPLOY", RED))
-            elif "ROLLBACK" in evt:
-                events_to_mark.append((idx, "ROLLBACK", ORANGE))
+        evts = d_record.get("events", [])
+        # Priority: ROLLBACK > BAD_MODEL > RETRAIN (show only highest-priority per day)
+        if any("ROLLBACK" in e for e in evts):
+            events_to_mark.append((idx, day, "ROLLBACK", ORANGE))
+            seen_days.add(day)
+        elif any("BAD_MODEL" in e for e in evts):
+            events_to_mark.append((idx, day, "BAD DEPLOY", RED))
+            seen_days.add(day)
+        elif any("RETRAIN" in e for e in evts) and day not in seen_days:
+            events_to_mark.append((idx, day, "RETRAIN", GREEN))
+            seen_days.add(day)
 
-    for idx, label, color in events_to_mark:
+    for i, (idx, day_num, label, color) in enumerate(events_to_mark):
         ax.axvline(x=idx, color=color, linewidth=1.5, linestyle="--", alpha=0.7)
-        ax.annotate(label, (idx, -0.8), fontsize=7, color=color,
-                    fontweight="bold", ha="center", annotation_clip=False)
+        # Stagger y-offset to prevent overlap when retrains are on consecutive days
+        y_offset = -0.6 - (i % 2) * 0.5
+        ax.annotate(label, (idx, y_offset), fontsize=6, color=color,
+                    fontweight="bold", ha="center", rotation=90,
+                    annotation_clip=False)
 
     ax.set_title("40-Day Production Drift — PSI per Feature",
                  fontsize=14, fontweight="bold", color=TEXT_COLOR, pad=15)
@@ -220,13 +230,26 @@ def plot_failure_rate(timeline: dict):
         ax.annotate(f"Baseline: {fail_rates[0]:.2f}%",
                     (1, fail_rates[0] + 0.05), fontsize=8, color=GRAY)
 
-    # Mark retrain day
+    # Mark retrain/rollback events (deduplicate: one label per day)
+    retrain_idx = 0
     for d in days_data:
-        if any("RETRAIN" in e for e in d.get("events", [])):
-            ax.axvline(x=d["day"], color=GREEN, linewidth=2, linestyle="--", alpha=0.8)
-            ax.annotate("★ RETRAIN", (d["day"], max(fail_rates) * 0.95),
-                        fontsize=9, color=GREEN, fontweight="bold", ha="center",
+        evts = d.get("events", [])
+        if any("ROLLBACK" in e for e in evts):
+            ax.axvline(x=d["day"], color=ORANGE, linewidth=2, linestyle="--", alpha=0.8)
+            ax.annotate("ROLLBACK", (d["day"], max(fail_rates) * (0.88 + (retrain_idx % 2) * 0.06)),
+                        fontsize=7, color=ORANGE, fontweight="bold", ha="center",
                         rotation=90)
+            retrain_idx += 1
+        elif any("BAD_MODEL" in e for e in evts):
+            ax.axvline(x=d["day"], color=RED, linewidth=2, linestyle="-.", alpha=0.8)
+        elif any("RETRAIN" in e for e in evts):
+            ax.axvline(x=d["day"], color=GREEN, linewidth=1.5, linestyle="--", alpha=0.6)
+            # Only annotate every other retrain to avoid overlap
+            if retrain_idx % 3 == 0:
+                ax.annotate("RETRAIN", (d["day"], max(fail_rates) * (0.88 + (retrain_idx % 2) * 0.06)),
+                            fontsize=7, color=GREEN, fontweight="bold", ha="center",
+                            rotation=90)
+            retrain_idx += 1
 
     ax.set_xlabel("Simulation Day", fontsize=10, color=TEXT_COLOR)
     ax.set_ylabel("Failure Rate (%)", fontsize=10, color=TEXT_COLOR)
@@ -285,20 +308,34 @@ def plot_retrain_story(timeline: dict):
     ax.fill_between(day_nums, version_nums, step="mid", alpha=0.3, color=LIGHT_BLUE)
     ax.step(day_nums, version_nums, where="mid", color=LIGHT_BLUE, linewidth=2)
 
-    # Mark key events
+    # Mark key events (deduplicate: one label per day, stagger to avoid overlap)
+    event_idx = 0
+    seen_event_days = set()
     for d in days_data:
-        for evt in d.get("events", []):
-            if "RETRAIN" in evt:
-                ax.axvline(x=d["day"], color=GREEN, linewidth=2, linestyle="--")
-                ax.annotate("★ RETRAIN", (d["day"], max(version_nums) + 0.3),
-                            fontsize=10, color=GREEN, fontweight="bold", ha="center")
-            elif "BAD_MODEL" in evt:
-                ax.axvline(x=d["day"], color=RED, linewidth=2, linestyle="--")
-                ax.annotate("⚠ BAD DEPLOY", (d["day"], max(version_nums) + 0.5),
-                            fontsize=9, color=RED, fontweight="bold", ha="center")
-            elif "ROLLBACK" in evt:
-                ax.annotate("↩ ROLLBACK", (d["day"], max(version_nums) + 0.1),
-                            fontsize=9, color=ORANGE, fontweight="bold", ha="center")
+        day = d["day"]
+        if day in seen_event_days:
+            continue
+        evts = d.get("events", [])
+        if any("ROLLBACK" in e for e in evts):
+            seen_event_days.add(day)
+            ax.axvline(x=day, color=ORANGE, linewidth=2, linestyle="-.")
+            ax.annotate("ROLLBACK", (day, max(version_nums) + 0.15),
+                        fontsize=8, color=ORANGE, fontweight="bold", ha="center",
+                        rotation=90)
+        elif any("BAD_MODEL" in e for e in evts):
+            seen_event_days.add(day)
+            ax.axvline(x=day, color=RED, linewidth=2, linestyle="--")
+            ax.annotate("BAD DEPLOY", (day, max(version_nums) + 0.4),
+                        fontsize=8, color=RED, fontweight="bold", ha="center",
+                        rotation=90)
+        elif any("RETRAIN" in e for e in evts):
+            seen_event_days.add(day)
+            ax.axvline(x=day, color=GREEN, linewidth=1.5, linestyle="--", alpha=0.6)
+            if event_idx % 3 == 0:
+                ax.annotate("RETRAIN", (day, max(version_nums) + 0.15 + (event_idx % 2) * 0.2),
+                            fontsize=7, color=GREEN, fontweight="bold", ha="center",
+                            rotation=90)
+            event_idx += 1
 
     ax.set_yticks(range(len(version_map)))
     ax.set_yticklabels(list(version_map.keys()), fontsize=9, color=TEXT_COLOR)
@@ -464,6 +501,65 @@ def plot_simulation_summary(timeline: dict, drift_reports: dict):
 
 
 # ═══════════════════════════════════════════════════════════════
+# PLOT 6: Feature Distribution Evolution (Ridge Plot)
+# ═══════════════════════════════════════════════════════════════
+
+def plot_distribution_evolution():
+    """Show how key feature distributions shift across 40 days."""
+    from src.streaming_data_generator import PRODUCTION_DIR
+
+    features = ["test_temp_c", "cell_leakage_fa", "retention_time_ms", "vt_shift_mv"]
+    feat_labels = ["Temperature (°C)", "Cell Leakage (fA)", "Retention (ms)", "Vt Shift (mV)"]
+    key_days = [1, 10, 20, 30, 39]
+
+    # Load sample rows from key days
+    day_data = {}
+    for day in key_days:
+        pq_path = PRODUCTION_DIR / f"day_{day:02d}.parquet"
+        if pq_path.exists():
+            df = pd.read_parquet(pq_path, columns=features)
+            day_data[day] = df.sample(n=min(5000, len(df)), random_state=42)
+
+    if len(day_data) < 2:
+        print("  ⚠ Not enough parquet files for distribution plot, skipping")
+        return
+
+    fig, axes = plt.subplots(1, len(features), figsize=(18, 5), facecolor=DARK_BG)
+    day_colors = plt.cm.coolwarm(np.linspace(0.1, 0.9, len(key_days)))
+
+    for col_idx, (feat, label) in enumerate(zip(features, feat_labels)):
+        ax = axes[col_idx]
+        ax.set_facecolor(CARD_BG)
+
+        for i, day in enumerate(sorted(day_data.keys())):
+            vals = day_data[day][feat].dropna().values
+            if len(vals) == 0:
+                continue
+            # KDE approximation via histogram
+            counts, bin_edges = np.histogram(vals, bins=50, density=True)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            ax.plot(bin_centers, counts, color=day_colors[i], linewidth=1.5,
+                    label=f"Day {day}", alpha=0.85)
+            ax.fill_between(bin_centers, counts, alpha=0.1, color=day_colors[i])
+
+        ax.set_title(label, fontsize=10, fontweight="bold", color=TEXT_COLOR)
+        ax.tick_params(colors=TEXT_COLOR, labelsize=7)
+        ax.spines[:].set_color(GRID_COLOR)
+        ax.set_ylabel("Density" if col_idx == 0 else "", fontsize=8, color=TEXT_COLOR)
+
+    axes[-1].legend(loc="upper right", fontsize=7,
+                    facecolor=CARD_BG, edgecolor=GRID_COLOR, labelcolor=TEXT_COLOR)
+
+    fig.suptitle("Feature Distribution Shift — Days 1 → 10 → 20 → 30 → 39",
+                 fontsize=14, fontweight="bold", color=TEXT_COLOR, y=1.02)
+    plt.tight_layout()
+    out = ASSETS_DIR / "p53_39_distribution_evolution.png"
+    fig.savefig(out, dpi=200, bbox_inches="tight", facecolor=DARK_BG)
+    plt.close()
+    print(f"  ✓ {out.name}")
+
+
+# ═══════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════
 
@@ -488,6 +584,7 @@ def main():
     plot_failure_rate(timeline)
     plot_retrain_story(timeline)
     plot_psi_waterfall(drift_reports)
+    plot_distribution_evolution()
     plot_simulation_summary(timeline, drift_reports)
 
     print(f"\n✅ All plots saved to {ASSETS_DIR}/")

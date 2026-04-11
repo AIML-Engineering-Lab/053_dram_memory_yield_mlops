@@ -64,7 +64,7 @@ def validate_simulation_results() -> bool:
     # Drift reports (files may be named day_*.json or drift_day_*.json)
     drift_files = list(DRIFT_REPORT_DIR.glob("*day_*.json")) if DRIFT_REPORT_DIR.exists() else []
     all_ok &= _check(
-        f"drift_reports/",
+        "drift_reports/",
         len(drift_files) >= 30,
         f"{len(drift_files)} day reports found",
     )
