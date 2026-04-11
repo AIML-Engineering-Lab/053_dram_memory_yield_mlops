@@ -1,15 +1,9 @@
 # ═══════════════════════════════════════════════════════════════
-# P053 — CI/CD Pipeline
+# DRAM Memory Yield Predictor — CI/CD Pipeline
 # ═══════════════════════════════════════════════════════════════
 # Triggers:
 #   Push to main → lint + test + build + push image
 #   Tag v* → build + push + deploy to K8s
-#
-# Interview talking point:
-#   "Every push runs ruff lint + pytest on focal loss, preprocessing,
-#   and inference modules. On tag, we build the Docker image, push to
-#   GHCR, and kubectl apply the K8s manifests. The canary deployment
-#   gets 10% traffic for 1 hour before full promotion."
 # ═══════════════════════════════════════════════════════════════
 
 name: CI/CD

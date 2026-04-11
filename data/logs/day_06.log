@@ -1,0 +1,17 @@
+2026-04-10 14:10:17.596 | INFO    | ========================================================================
+2026-04-10 14:10:17.596 | INFO    | P053 SIMULATION — DAY 06 (PHASE2)
+2026-04-10 14:10:17.596 | INFO    | Started: 2026-04-10T14:10:17.595994
+2026-04-10 14:10:17.596 | INFO    | ========================================================================
+2026-04-10 14:10:45.763 | INFO    | [DATA-GEN] Scenario: steady
+2026-04-10 14:10:45.763 | INFO    | [DATA-GEN] Rows generated: 5,000,000
+2026-04-10 14:10:45.763 | INFO    | [DATA-GEN] Parquet size: 213.7 MB
+2026-04-10 14:10:45.763 | INFO    | [DATA-GEN] Time: 28.2s
+2026-04-10 14:10:45.763 | INFO    | [INFRA] Model params: 317,000
+2026-04-10 14:10:45.763 | INFO    | [INFRA] Estimated VRAM: 1.0 GB
+2026-04-10 14:10:45.763 | INFO    | [INFRA] Selected GPU: T4 (g4dn.xlarge)
+2026-04-10 14:10:45.763 | INFO    | [INFRA] Cost: $0.53/hr
+2026-04-10 14:10:45.763 | INFO    | [INFRA] Current instance sufficient — CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K
+2026-04-10 14:10:45.782 | WARNING | [S3] Upload failed: Unable to locate credentials
+2026-04-10 14:10:45.782 | INFO    | ========================================================================
+2026-04-10 14:10:45.782 | INFO    | DAY 06 COMPLETE — 28.2s total
+2026-04-10 14:10:45.782 | INFO    | ========================================================================

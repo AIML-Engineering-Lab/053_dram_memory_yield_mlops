@@ -1,0 +1,30 @@
+2026-04-10 14:13:58.813 | INFO    | ========================================================================
+2026-04-10 14:13:58.813 | INFO    | P053 SIMULATION — DAY 13 (PHASE2)
+2026-04-10 14:13:58.813 | INFO    | Started: 2026-04-10T14:13:58.813134
+2026-04-10 14:13:58.813 | INFO    | ========================================================================
+2026-04-10 14:14:27.442 | INFO    | [DATA-GEN] Scenario: gradual_drift
+2026-04-10 14:14:27.442 | INFO    | [DATA-GEN] Rows generated: 5,000,000
+2026-04-10 14:14:27.442 | INFO    | [DATA-GEN] Parquet size: 214.1 MB
+2026-04-10 14:14:27.442 | INFO    | [DATA-GEN] Time: 28.6s
+2026-04-10 14:14:27.442 | INFO    | [INFRA] Model params: 317,000
+2026-04-10 14:14:27.442 | INFO    | [INFRA] Estimated VRAM: 1.0 GB
+2026-04-10 14:14:27.442 | INFO    | [INFRA] Selected GPU: T4 (g4dn.xlarge)
+2026-04-10 14:14:27.442 | INFO    | [INFRA] Cost: $0.53/hr
+2026-04-10 14:14:27.442 | INFO    | [INFRA] Current instance sufficient — CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K
+2026-04-10 14:14:32.221 | INFO    | [DRIFT] Critical features: 0
+2026-04-10 14:14:32.221 | INFO    | [DRIFT] Warning features: 1
+2026-04-10 14:14:32.221 | INFO    | [DRIFT] Reliable: True
+2026-04-10 14:14:32.221 | INFO    | [DRIFT] Ref rows: 100,000 | Analysis rows: 100,000
+2026-04-10 14:14:32.221 | INFO    | [DRIFT]   gate_oxide_thickness_a: PSI=0.137689 [WARNING]
+2026-04-10 14:14:32.221 | INFO    | [DRIFT]   test_temp_c: PSI=0.098999 [OK]
+2026-04-10 14:14:32.221 | INFO    | [DRIFT]   retention_time_ms: PSI=0.082525 [OK]
+2026-04-10 14:14:32.221 | INFO    | [DRIFT]   cell_leakage_fa: PSI=0.007748 [OK]
+2026-04-10 14:14:32.221 | INFO    | [DRIFT]   trcd_ns: PSI=0.000211 [OK]
+2026-04-10 14:14:32.221 | INFO    | [DRIFT]   vt_shift_mv: PSI=0.000181 [OK]
+2026-04-10 14:14:32.222 | INFO    | [RETRAIN] ✗ SKIPPED — only 0 critical features (need ≥3)
+2026-04-10 14:14:32.222 | INFO    | [RETRAIN] Flags: drift=False, staleness=False, reliable=True
+2026-04-10 14:14:32.222 | INFO    | [RETRAIN] Days since last retrain: 13
+2026-04-10 14:14:32.241 | WARNING | [S3] Upload failed: Unable to locate credentials
+2026-04-10 14:14:32.242 | INFO    | ========================================================================
+2026-04-10 14:14:32.242 | INFO    | DAY 13 COMPLETE — 33.4s total
+2026-04-10 14:14:32.242 | INFO    | ========================================================================

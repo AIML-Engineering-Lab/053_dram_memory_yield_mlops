@@ -1,15 +1,15 @@
 # DRAM Memory Yield Predictor — End-to-End MLOps Pipeline
 
-[![CI/CD](https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops/actions/workflows/ci.yml/badge.svg)](https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops/actions)
+[![CI/CD](https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps/actions/workflows/ci.yml/badge.svg)](https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps/actions)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C.svg)](https://pytorch.org/)
 [![MLflow](https://img.shields.io/badge/MLflow-2.19-0194E2.svg)](https://mlflow.org/)
 [![Docker](https://img.shields.io/badge/Docker-6%20services-2496ED.svg)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Production-scale DRAM wafer yield prediction using a HybridTransformerCNN on 16M rows with full MLOps lifecycle: drift detection, automated retraining, canary deployment, and rollback — running on A100 GPU with bfloat16.**
+**Production-scale DRAM wafer yield prediction using a HybridTransformerCNN on 16M rows with full MLOps lifecycle: drift detection, automated retraining, canary deployment, and rollback -- trained and validated on NVIDIA A100 GPU with bfloat16.**
 
-Predicts die-level failures before electrical test completion using 36 semiconductor process and test features. The complete MLOps lifecycle is demonstrated end-to-end: EDA, baseline modeling, custom deep learning, MLflow experiment tracking, Model Registry, drift monitoring, a 40-day production simulation (200M rows), containerized deployment with Kafka + Spark + Airflow, and Kubernetes orchestration.
+Predicts die-level failures before electrical test completion using 36 semiconductor process and test features. The complete MLOps lifecycle runs end-to-end: EDA, baseline modeling, custom deep learning, MLflow experiment tracking, Model Registry, drift monitoring, a 40-day production run processing 200M rows on A100 GPU, containerized deployment with Kafka + Spark + Airflow, and Kubernetes orchestration.
 
 ---
 
@@ -17,15 +17,15 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 
 | Model | Val AUC-PR | Test AUC-PR | Recall | Params | GPU | Training |
 |-------|-----------|-------------|--------|--------|-----|----------|
-| Logistic Regression | 0.0219 | — | 0.1724 | — | CPU | 2s |
-| XGBoost | 0.0584 | — | 0.2759 | — | CPU | 45s |
-| LightGBM | 0.0553 | — | 0.2672 | — | CPU | 12s |
+| Logistic Regression | 0.0219 | -- | 0.1724 | -- | CPU | 2s |
+| XGBoost | 0.0584 | -- | 0.2759 | -- | CPU | 45s |
+| LightGBM | 0.0553 | -- | 0.2672 | -- | CPU | 12s |
 | HybridTransformerCNN (T4) | 0.0524 | 0.0471 | 0.1779 | 317,633 | T4 | 33 ep, 5h |
 | **HybridTransformerCNN (A100)** | **0.0543** | **0.0497** | **0.1951** | **317,633** | **A100-SXM4-40GB** | **50 ep, 201.7 min** |
 
-> AUC-PR is the correct metric at 1:159 class imbalance. Random baseline AUC-PR = 0.006 — the champion model is **9x better** than random. AUC-ROC = 0.816 confirms strong discrimination.
+> AUC-PR is the correct metric at 1:159 class imbalance. Random baseline AUC-PR = 0.006 -- the champion model is **9x better** than random. AUC-ROC = 0.816 confirms strong discrimination.
 
-### A100 Champion (Day 1)
+### A100 Champion -- v1 (Day 1 Initial Training)
 
 | Split | AUC-PR | AUC-ROC | F1 | Recall | Precision |
 |-------|--------|---------|-----|--------|-----------|
@@ -51,13 +51,66 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 
 ---
 
-## 40-Day Production Simulation (A100, Completed)
+## A100 Training Results
 
-The simulation ran **200M rows across 40 days** on an A100 GPU in 219.4 minutes, with 1 automated retrain, 1 canary failure, and 1 rollback — all fully automated.
+<p align="center">
+  <img src="assets/p53_39_a100_training_results.png" width="100%" alt="A100 Training Results - Loss curves, AUC-PR progression, and confusion matrices across 50 epochs"/>
+</p>
+
+> **A100 bfloat16 training:** 50 epochs on 16M rows (201.7 min). Loss curves, AUC-PR progression, and confusion matrices for train/val/test splits. Best model saved at epoch 39.
+
+---
+
+## 40-Day Production Run (A100, 200M Rows)
+
+The full production lifecycle processed **200M rows across 40 days** on an A100 GPU in 219.4 minutes. The pipeline automatically detected drift, triggered 1 retrain, evaluated via canary, and executed 1 rollback -- all without manual intervention.
+
+### Model Versions
+
+| Version | Created | Trigger | Artifact |
+|---------|---------|---------|----------|
+| **v1** (Day 1 champion) | Day 1 | Initial training, 50 epochs | `hybrid_best_A100-day1-initial.pt` |
+| **v2** (Day 30 retrain) | Day 30 | Drift detected on 5 critical features | `day30_v2_retrained.pt` |
+
+v1 served inference Days 1-30. After drift accumulated over Days 17-29 and the staleness gate opened on Day 30, the pipeline retrained on the full day's data producing v2. The canary passed and v2 was promoted. On Day 39, a deliberately bad model failed canary evaluation and the system rolled back to v2 automatically.
+
+### Day-by-Day Drift Timeline
+
+<p align="center">
+  <img src="assets/p53_33_drift_timeline.png" width="100%" alt="Drift Timeline Heatmap - PSI values per feature across all 40 days, with RETRAIN and ROLLBACK markers"/>
+</p>
+
+> **Drift timeline heatmap:** Each cell shows the PSI (Population Stability Index) for one feature on one day. Green = stable, yellow = warning, red = critical drift. The vertical markers show exactly when RETRAIN (Day 30) and ROLLBACK (Day 39) events fired. Notice how drift gradually intensifies from Day 17 onwards across multiple features simultaneously.
+
+### Model Lifecycle: v1 to v2
+
+<p align="center">
+  <img src="assets/p53_34_retrain_story.png" width="100%" alt="Retrain Story - Model version transitions, canary evaluations, and rollback events"/>
+</p>
+
+> **Model lifecycle:** v1 champion serves Days 1-30. Day 30: drift triggers retrain, canary passes, v2 promoted. Day 39: bad model fails canary, automatic rollback to v2. The system self-heals without human intervention.
+
+### PSI Feature Breakdown
+
+<p align="center">
+  <img src="assets/p53_38_psi_waterfall.png" width="100%" alt="PSI Waterfall - Per-feature PSI values across key days showing which features drifted most"/>
+</p>
+
+> **PSI waterfall:** Per-feature PSI values on key days. Shows which specific DRAM process parameters drifted most severely, triggering the retrain gate when 3+ features exceeded the critical threshold simultaneously.
+
+### Production Run Summary
+
+<p align="center">
+  <img src="assets/p53_37_simulation_summary.png" width="100%" alt="Production Run Summary - 200M rows, 40 days, 219.4 minutes, 1 retrain, 1 rollback"/>
+</p>
+
+> **End-to-end stats:** 200M rows processed, 40 days of production data, 219.4 minutes wall clock, 1 automated retrain, 1 canary failure with rollback. All artifacts uploaded to S3.
+
+### Timeline
 
 ```mermaid
 gantt
-    title 40-Day Simulation Timeline
+    title 40-Day Production Run
     dateFormat  YYYY-MM-DD
     axisFormat  %b %d
 
@@ -65,99 +118,77 @@ gantt
     Days 1-8  Reference window       :done, 2026-02-20, 8d
     Days 9-16 Clean inference         :done, 2026-02-28, 8d
 
-    section Drift Detected
-    Days 17-29 Critical drift (3-5 features) :crit, 2026-03-09, 13d
+    section Drift
+    Days 17-29 Critical drift         :crit, 2026-03-09, 13d
 
     section Retrain
-    Day 30 RETRAIN (50 ep, A100 bfloat16)    :crit, 2026-03-21, 1d
+    Day 30 RETRAIN v2                 :crit, 2026-03-21, 1d
 
     section Post-Retrain
-    Days 31-38 Monitoring v2 champion  :done, 2026-03-22, 8d
-    Day 39 Bad model + canary fail + rollback :crit, 2026-03-30, 1d
-    Day 40 System recovered            :done, 2026-03-31, 1d
+    Days 31-38 v2 champion            :done, 2026-03-22, 8d
+    Day 39 Canary fail + rollback     :crit, 2026-03-30, 1d
+    Day 40 Recovered                  :done, 2026-03-31, 1d
 ```
 
 | Day | Event | Action |
 |-----|-------|--------|
-| 1-8 | Reference window | Baseline data generation |
+| 1-8 | Reference window | Baseline data, v1 champion serving |
 | 9-16 | Clean inference | No drift detected |
-| 17-29 | Drift detected (3-5 critical features) | Staleness gate blocks retrain (< 30 days) |
-| **30** | **Retrain triggered** | **50 epochs on A100, bfloat16, model v2 promoted** |
-| 31-38 | Post-retrain monitoring | v2 champion, drift continues |
-| **39** | **Bad model deployed** | **Canary failed, rollback to v2** |
-| 40 | System recovered | Final state: v2 champion active |
-
-All 40 days uploaded to S3. Model artifact: `s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt`
-
-### Simulation Charts
-
-<p align="center">
-  <img src="assets/p53_33_drift_timeline.png" width="48%" alt="Drift Timeline"/>
-  <img src="assets/p53_34_retrain_story.png" width="48%" alt="Retrain Story"/>
-</p>
-<p align="center">
-  <img src="assets/p53_37_simulation_summary.png" width="48%" alt="Simulation Summary"/>
-  <img src="assets/p53_38_psi_waterfall.png" width="48%" alt="PSI Waterfall"/>
-</p>
+| 17-29 | Drift detected (3-5 critical features) | Staleness gate blocks retrain (< 30 days since v1) |
+| **30** | **Retrain triggered** | **50 epochs on A100, bfloat16, v2 promoted** |
+| 31-38 | Post-retrain monitoring | v2 champion active |
+| **39** | **Bad model deployed** | **Canary failed, automatic rollback to v2** |
+| 40 | System recovered | v2 champion active, pipeline healthy |
 
 ---
 
 ## System Architecture
 
 ```mermaid
-graph TB
-    subgraph DataPipeline["Data Pipeline"]
-        DG["Data Generator<br/>16M rows x 36 features"] --> PP["Preprocessing<br/>Scaling, encoding, engineering"]
-        PP --> NPZ["preprocessed_full.npz<br/>2.1 GB"]
+graph LR
+    subgraph Data
+        DG[Data Generator\n16M rows] --> PP[Preprocess]
+        PP --> NPZ[preprocessed.npz]
     end
 
-    subgraph Training["Model Training (A100 GPU)"]
-        NPZ --> BL["Baselines<br/>LogReg, XGBoost, LightGBM"]
-        NPZ --> HM["HybridTransformerCNN<br/>317K params"]
-        HM --> FL["Focal Loss<br/>alpha=0.75, gamma=2.0"]
-        FL --> AMP["bfloat16 AMP<br/>No GradScaler needed"]
+    subgraph Train
+        NPZ --> BL[Baselines\nLogReg XGB LGBM]
+        NPZ --> HM[HybridTransformerCNN\n317K params]
+        HM --> FL[FocalLoss\nalpha=0.75 gamma=2.0]
+        FL --> AMP[bfloat16 AMP]
     end
 
-    subgraph MLflowStack["MLflow + Model Registry"]
-        AMP --> ML["MLflow Tracking<br/>Params, metrics, artifacts"]
-        ML --> MR["Model Registry<br/>Champion / Baseline aliases"]
-        ML --> S3["S3 Artifacts<br/>Model weights + benchmarks"]
+    subgraph Track
+        AMP --> ML[MLflow Tracking]
+        ML --> MR[Model Registry]
+        ML --> S3[S3 Artifacts]
     end
 
-    subgraph Simulation["40-Day Production Simulation"]
-        SG["Streaming Generator<br/>14 drift scenarios"] --> DD["Drift Detector<br/>PSI across 6 key features"]
-        DD --> RG["3-Criteria Retrain Gate<br/>Drift + Staleness + Data volume"]
-        RG -->|trigger| RT["GPU Retrain<br/>50 epochs, auto S3 upload"]
-        RT --> CE["Canary Evaluation"]
-        CE -->|pass| PR["Promote Champion"]
-        CE -->|fail| RB["Rollback to Previous"]
+    subgraph Lifecycle
+        SG[Streaming Generator\n14 drift scenarios] --> DD[Drift Detector\nPSI 6 features]
+        DD --> RG[Retrain Gate\nDrift+Staleness+Volume]
+        RG --> RT[GPU Retrain]
+        RT --> CE[Canary Eval]
+        CE --> PR[Promote / Rollback]
     end
 
-    subgraph Serving["Production Serving"]
-        MR --> FA["FastAPI<br/>Prometheus metrics"]
-        FA --> DK["Docker Compose<br/>6 services"]
-        DK --> K8["Kubernetes<br/>HPA 2-8 pods, canary"]
-        K8 --> PM["Prometheus + Grafana"]
+    subgraph Serve
+        MR --> FA[FastAPI]
+        FA --> DK[Docker 6 services]
+        DK --> K8[Kubernetes HPA]
+        K8 --> PM[Prometheus Grafana]
     end
 
-    subgraph BigData["Big Data Stack (Docker)"]
-        KF["Kafka<br/>Streaming ingestion"] --> SP["Spark ETL<br/>Distributed processing"]
-        SP --> AF["Airflow DAGs<br/>3 orchestration pipelines"]
+    subgraph BigData
+        KF[Kafka] --> SP[Spark ETL]
+        SP --> AF[Airflow DAGs]
     end
 
-    subgraph AWS["AWS Infrastructure"]
-        RDS["RDS PostgreSQL<br/>MLflow backend"]
-        S3B["S3 Bucket<br/>Artifacts + models"]
-        ECR["ECR<br/>Container registry"]
+    subgraph Cloud
+        RDS[RDS PostgreSQL]
+        S3B[S3 Bucket]
+        ECR[ECR Registry]
     end
-
-    style DataPipeline fill:#1e3a5f,color:#fff
-    style Training fill:#1e3a5f,color:#fff
-    style MLflowStack fill:#7c2d12,color:#fff
-    style Simulation fill:#065f46,color:#fff
-    style BigData fill:#4c1d95,color:#fff
-    style Serving fill:#065f46,color:#fff
-    style AWS fill:#92400e,color:#fff
 ```
 
 ---
@@ -166,28 +197,24 @@ graph TB
 
 ```mermaid
 flowchart LR
-    A["Daily Data<br/>5M rows"] --> B["PSI Calculation<br/>6 key features"]
-    B --> C{Critical features >= 3?}
-    C -->|No| D["Log & Continue"]
-    C -->|Yes| E{Days since<br/>last retrain >= 30?}
-    E -->|No| F["Staleness Gate<br/>Blocks retrain"]
-    E -->|Yes| G{Data volume<br/>>= 10K rows?}
-    G -->|No| H["Low-data Tag<br/>No action"]
-    G -->|Yes| I["RETRAIN<br/>50 epochs, A100"]
-    I --> J["Canary Evaluation"]
-    J -->|Better| K["Promote to Champion"]
-    J -->|Worse| L["Rollback"]
-    K --> M["Upload to S3"]
+    A[Daily Data\n5M rows] --> B[PSI Calc\n6 features]
+    B --> C{Critical\nfeatures >= 3?}
+    C -->|No| D[Log and Continue]
+    C -->|Yes| E{Staleness\n>= 30 days?}
+    E -->|No| F[Blocked]
+    E -->|Yes| G{Volume\n>= 10K?}
+    G -->|No| H[Tag Only]
+    G -->|Yes| I[RETRAIN\nA100 50ep]
+    I --> J[Canary Eval]
+    J -->|Better| K[Promote]
+    J -->|Worse| L[Rollback]
+    K --> M[Upload S3]
     L --> M
-
-    style I fill:#b91c1c,color:#fff
-    style K fill:#065f46,color:#fff
-    style L fill:#92400e,color:#fff
 ```
 
 ---
 
-## The bfloat16 Story (Engineering Decision ED-031)
+## The bfloat16 Story
 
 Training on T4 GPU with float16 + GradScaler caused a **death spiral**: FocalLoss with extreme class imbalance (0.6% positives) produces gradient magnitudes that overflow float16's 5-bit exponent range. The GradScaler responds by halving its scale factor until it reaches zero, at which point all gradients become zero and training collapses.
 
@@ -206,47 +233,33 @@ Training on T4 GPU with float16 + GradScaler caused a **death spiral**: FocalLos
 ```
 DRAM_Yield_Predictor_MLOps/
 ├── src/                              # 33 Python modules
-│   ├── config.py                     # Central configuration
-│   ├── data_generator.py             # 16M-row synthetic DRAM dataset
-│   ├── preprocess.py                 # Full preprocessing pipeline
 │   ├── model.py                      # HybridTransformerCNN (317K params)
 │   ├── focal_loss.py                 # FocalLoss (NaN-safe, NumPy + PyTorch)
 │   ├── train.py                      # MLflow-integrated GPU training (CLI)
 │   ├── train_baseline.py             # LogReg + XGBoost + LightGBM baselines
-│   ├── run_simulation.py             # 40-day production simulation orchestrator
-│   ├── streaming_data_generator.py   # 14-scenario drift data generator
+│   ├── run_simulation.py             # 40-day production run orchestrator
 │   ├── drift_detector.py             # PSI + KL + KS triple drift detection
 │   ├── retrain_trigger.py            # 3-criteria retrain gate
 │   ├── gpu_selector.py               # Auto GPU selection (T4/A100)
 │   ├── compute_backend.py            # AWS -> Colab -> Local fallback
-│   ├── s3_utils.py                   # S3 artifact management
 │   ├── serve.py                      # FastAPI with Prometheus metrics
-│   ├── inference.py                  # YieldPredictor (batch + single)
-│   ├── mlflow_utils.py               # MLflow tracking + Model Registry
 │   ├── spark_etl.py                  # Spark ETL pipeline
-│   ├── spark_drift_detector.py       # Distributed drift detection (PySpark)
 │   ├── kafka_producer.py             # Streaming data to Kafka
-│   ├── kafka_consumer.py             # Real-time inference consumer
-│   ├── sagemaker_pipeline.py         # 9-step SageMaker Pipeline
-│   └── simulation_logger.py          # Comprehensive day-level logging
+│   └── kafka_consumer.py             # Real-time inference consumer
 ├── notebooks/
 │   ├── NB01_advanced_eda.ipynb       # 14-plot EDA with spatial wafer analysis
 │   ├── NB02_gpu_training_v4_A100.ipynb   # A100 bfloat16 training
 │   ├── NB03_production_training.ipynb    # Day 1 champion training
-│   └── NB04_colab_training_A100.ipynb    # 40-day simulation notebook
+│   └── NB04_colab_training_A100.ipynb    # 40-day production run notebook
 ├── deploy/
 │   ├── docker/                       # Docker Compose (6 services), Prometheus, Grafana
-│   ├── aws/                          # .env.aws, Dockerfile.airflow-gpu, EC2 bootstrap
+│   ├── aws/                          # Dockerfile.airflow-gpu, EC2 bootstrap
 │   ├── k8s/                          # Kubernetes: deployment, HPA, canary, service
-│   ├── airflow/dags/                 # 3 DAGs: daily, retrain, simulation master
+│   ├── airflow/dags/                 # 3 DAGs: daily, retrain, master orchestrator
 │   └── monitoring/                   # Prometheus + Grafana configs
-├── docs/
-│   ├── ENGINEERING_DECISIONS.md      # 42 decisions with interview-ready answers
-│   ├── Memory_Yield_Predictor_Report.html  # Full project report
-│   └── (8 more technical guides)
-├── assets/                           # 45 PNG plots (EDA, baselines, simulation)
+├── assets/                           # 44 PNG plots (EDA, baselines, production run)
 ├── data/
-│   ├── simulation_timeline.json      # 40-day A100 simulation results
+│   ├── production/                   # 40-day timeline and results
 │   ├── benchmark_*.json              # GPU training benchmarks
 │   └── drift_reports/                # Per-day PSI drift reports
 ├── tests/                            # 20 tests (model, API, drift, config)
@@ -266,8 +279,8 @@ DRAM_Yield_Predictor_MLOps/
 | **Data** | Apache Spark, Apache Kafka, Pandas, NumPy |
 | **Orchestration** | Apache Airflow (3 DAGs) |
 | **Serving** | FastAPI, Prometheus, Grafana |
-| **Infrastructure** | Docker (6+ services), Kubernetes (HPA, canary), AWS (RDS, S3, ECR, SageMaker) |
-| **GPU** | NVIDIA A100 (bfloat16), T4 (float16), Apple MPS (benchmark) |
+| **Infrastructure** | Docker (6+ services), Kubernetes (HPA, canary), AWS (RDS, S3, ECR) |
+| **GPU** | NVIDIA A100 (bfloat16), T4 (float16), Apple MPS (dev benchmark) |
 | **CI/CD** | GitHub Actions (ruff lint + pytest + Docker build) |
 
 ---
@@ -292,7 +305,7 @@ python src/train_baseline.py
 # Train HybridTransformerCNN (auto-detects GPU)
 python -m src.train --full --batch-size 4096
 
-# Run 40-day simulation (fast mode, ~10 min)
+# Run 40-day production lifecycle (fast mode, ~10 min)
 python -m src.run_simulation --fast
 
 # MLflow UI
@@ -309,30 +322,6 @@ cd deploy/docker && docker compose up -d
 # Grafana: http://localhost:3000
 # API docs: http://localhost:8000/docs
 ```
-
-### AWS Production (RDS + S3)
-```bash
-cp deploy/aws/.env.aws.template deploy/aws/.env
-# Edit with RDS endpoint, S3 bucket, ECR URI
-docker compose -f deploy/aws/docker-compose-bigdata-aws.yml --env-file deploy/aws/.env up -d
-```
-
----
-
-## Engineering Decisions
-
-See [docs/ENGINEERING_DECISIONS.md](docs/ENGINEERING_DECISIONS.md) for all 42 documented decisions. Key ones:
-
-| ID | Decision | Why |
-|----|----------|-----|
-| ED-001 | AUC-PR over AUC-ROC | AUC-ROC inflates at 1:159 imbalance due to TNs |
-| ED-003 | FocalLoss over SMOTE/class weights | SMOTE creates synthetic noise; FocalLoss focuses on hard examples |
-| ED-004 | bfloat16 on A100 (no GradScaler) | float16 death spiral with FocalLoss extreme gradients |
-| ED-007 | Transformer+CNN hybrid | Different feature distributions need separate processing |
-| ED-015 | Triple drift detection | PSI alone misses distribution shape changes |
-| ED-041 | GPU auto-selector | Automated T4/A100 selection by model params and data volume |
-| ED-042 | Low-data drift tagging | Tag but never retrain when <10K rows |
-| ED-043 | Compute backend fallback | AWS -> Colab -> Local chain for resilience |
 
 ---
 

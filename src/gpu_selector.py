@@ -213,7 +213,7 @@ def select_gpu(model_params: int, batch_size: int = 4096,
 
 def launch_training_instance(gpu_req: GPURequirement,
                              key_name: str = "p053-key",
-                             security_group: str = "sg-0f11ba29c1155cba3",
+                             security_group: str | None = None,
                              dry_run: bool = False) -> dict:
     """
     Launch a new EC2 instance with the required GPU for training.
@@ -222,6 +222,14 @@ def launch_training_instance(gpu_req: GPURequirement,
     The training instance is TEMPORARY — stopped after training completes.
     """
     import boto3
+
+    if security_group is None:
+        security_group = os.environ.get("AWS_SECURITY_GROUP_ID", "")
+        if not security_group:
+            raise ValueError(
+                "No security group provided. Set AWS_SECURITY_GROUP_ID env var "
+                "or pass security_group parameter."
+            )
 
     if dry_run:
         logger.info("DRY RUN: Would launch %s (%s) for training",

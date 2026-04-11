@@ -44,7 +44,7 @@ spec:
     spec:
       containers:
         - name: predictor
-          image: ghcr.io/aiml-engineering-lab/memory-yield-predictor:v2-canary
+          image: ghcr.io/rajendarmuddasani/dram-yield-predictor:v2-canary
           ports:
             - containerPort: 8000
               name: http

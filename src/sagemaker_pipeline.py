@@ -209,7 +209,7 @@ def create_pipeline_definition() -> dict:
                 "approval_status": "PendingManualApproval",
                 "inference_specification": {
                     "containers": [{
-                        "image": "ghcr.io/aiml-engineering-lab/memory-yield-predictor:latest",
+                        "image": "ghcr.io/rajendarmuddasani/dram-yield-predictor:latest",
                         "model_data_url": "steps.TrainModel.properties.ModelArtifacts.S3ModelArtifacts",
                     }],
                     "supported_instance_types": [cfg["inference_instance"]],

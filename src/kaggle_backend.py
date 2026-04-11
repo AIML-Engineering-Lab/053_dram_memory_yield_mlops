@@ -96,7 +96,7 @@ def _write_run_config(run_name: str, epochs: int, context: str) -> None:
         "aws_region": os.environ.get("AWS_DEFAULT_REGION", "us-west-2"),
         "github_repo": os.environ.get(
             "GITHUB_REPO_URL",
-            "https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops.git",
+            "https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps.git",
         ),
         "triggered_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }

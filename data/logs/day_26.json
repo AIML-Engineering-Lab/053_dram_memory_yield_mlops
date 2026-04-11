@@ -1,0 +1,75 @@
+{
+  "day": 26,
+  "phase": "phase2",
+  "start_time": "2026-04-10T14:21:03.324413",
+  "end_time": "2026-04-10T14:21:34.666562",
+  "elapsed_sec": 31.3,
+  "events": [
+    {
+      "timestamp": "2026-04-10T14:21:30.735278",
+      "day": 26,
+      "category": "data_generation",
+      "event": "completed",
+      "rows": 5000000,
+      "parquet_mb": 213.0,
+      "scenario": "threshold_2",
+      "elapsed_sec": 27.4
+    },
+    {
+      "timestamp": "2026-04-10T14:21:30.735472",
+      "day": 26,
+      "category": "infra_selection",
+      "event": "gpu_selected",
+      "model_params": 317000,
+      "estimated_vram_gb": 1.01,
+      "selected_gpu": "T4",
+      "instance_type": "g4dn.xlarge",
+      "cost_per_hour": 0.526,
+      "needs_switch": false,
+      "reason": "CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K"
+    },
+    {
+      "timestamp": "2026-04-10T14:21:34.644711",
+      "day": 26,
+      "category": "drift_detection",
+      "event": "completed",
+      "features_critical": 5,
+      "features_warning": 0,
+      "feature_psi": {
+        "test_temp_c": 3.110329,
+        "cell_leakage_fa": 0.35473,
+        "retention_time_ms": 4.48234,
+        "gate_oxide_thickness_a": 3.30148,
+        "vt_shift_mv": 0.20941,
+        "trcd_ns": 0.000152
+      },
+      "drift_reliable": true,
+      "ref_rows": 100000,
+      "analysis_rows": 100000,
+      "low_data_warning": null
+    },
+    {
+      "timestamp": "2026-04-10T14:21:34.644877",
+      "day": 26,
+      "category": "retrain_decision",
+      "event": "skipped",
+      "should_retrain": false,
+      "reason": "staleness gate (26d < 30)",
+      "drift_critical": 5,
+      "days_since_retrain": 26,
+      "flags": {
+        "drift_threshold_met": true,
+        "staleness_gate_passed": false,
+        "data_reliable": true
+      }
+    },
+    {
+      "timestamp": "2026-04-10T14:21:34.666359",
+      "day": 26,
+      "category": "s3_upload",
+      "event": "error",
+      "n_files": 0,
+      "error": "Unable to locate credentials"
+    }
+  ]
+}

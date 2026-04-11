@@ -1,0 +1,30 @@
+2026-04-10 18:44:20.346 | INFO    | ========================================================================
+2026-04-10 18:44:20.346 | INFO    | P053 SIMULATION — DAY 36 (PHASE2)
+2026-04-10 18:44:20.346 | INFO    | Started: 2026-04-10T18:44:20.344358
+2026-04-10 18:44:20.346 | INFO    | ========================================================================
+2026-04-10 18:44:48.128 | INFO    | [DATA-GEN] Scenario: second_drift
+2026-04-10 18:44:48.129 | INFO    | [DATA-GEN] Rows generated: 5,000,000
+2026-04-10 18:44:48.129 | INFO    | [DATA-GEN] Parquet size: 213.6 MB
+2026-04-10 18:44:48.129 | INFO    | [DATA-GEN] Time: 27.8s
+2026-04-10 18:44:48.129 | INFO    | [INFRA] Model params: 317,000
+2026-04-10 18:44:48.129 | INFO    | [INFRA] Estimated VRAM: 1.0 GB
+2026-04-10 18:44:48.129 | INFO    | [INFRA] Selected GPU: T4 (g4dn.xlarge)
+2026-04-10 18:44:48.129 | INFO    | [INFRA] Cost: $0.53/hr
+2026-04-10 18:44:48.129 | INFO    | [INFRA] Current instance sufficient — CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K
+2026-04-10 18:44:52.914 | INFO    | [DRIFT] Critical features: 4
+2026-04-10 18:44:52.915 | INFO    | [DRIFT] Warning features: 0
+2026-04-10 18:44:52.915 | INFO    | [DRIFT] Reliable: True
+2026-04-10 18:44:52.915 | INFO    | [DRIFT] Ref rows: 100,000 | Analysis rows: 100,000
+2026-04-10 18:44:52.915 | INFO    | [DRIFT]   retention_time_ms: PSI=6.324107 [CRITICAL]
+2026-04-10 18:44:52.915 | INFO    | [DRIFT]   gate_oxide_thickness_a: PSI=6.187283 [CRITICAL]
+2026-04-10 18:44:52.915 | INFO    | [DRIFT]   test_temp_c: PSI=3.830554 [CRITICAL]
+2026-04-10 18:44:52.915 | INFO    | [DRIFT]   cell_leakage_fa: PSI=0.637381 [CRITICAL]
+2026-04-10 18:44:52.915 | INFO    | [DRIFT]   vt_shift_mv: PSI=0.038687 [OK]
+2026-04-10 18:44:52.915 | INFO    | [DRIFT]   trcd_ns: PSI=0.000143 [OK]
+2026-04-10 18:44:52.915 | INFO    | [RETRAIN] ✓ TRIGGERED — 4 critical features, 36d since last retrain
+2026-04-10 18:44:52.915 | INFO    | [RETRAIN] Flags: drift=True, staleness=True, reliable=True
+2026-04-10 18:44:52.915 | INFO    | [RETRAIN] Days since last retrain: 36
+2026-04-10 19:26:48.856 | WARNING | [S3] Upload failed: Unable to locate credentials
+2026-04-10 19:26:48.858 | INFO    | ========================================================================
+2026-04-10 19:26:48.858 | INFO    | DAY 36 COMPLETE — 2548.5s total
+2026-04-10 19:26:48.858 | INFO    | ========================================================================

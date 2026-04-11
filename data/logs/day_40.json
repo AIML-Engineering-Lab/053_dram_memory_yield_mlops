@@ -1,0 +1,75 @@
+{
+  "day": 40,
+  "phase": "phase2",
+  "start_time": "2026-04-10T21:32:26.835815",
+  "end_time": "2026-04-10T22:34:47.369495",
+  "elapsed_sec": 3740.5,
+  "events": [
+    {
+      "timestamp": "2026-04-10T21:32:53.958010",
+      "day": 40,
+      "category": "data_generation",
+      "event": "completed",
+      "rows": 5000000,
+      "parquet_mb": 213.7,
+      "scenario": "final_recovery",
+      "elapsed_sec": 27.1
+    },
+    {
+      "timestamp": "2026-04-10T21:32:53.958263",
+      "day": 40,
+      "category": "infra_selection",
+      "event": "gpu_selected",
+      "model_params": 317000,
+      "estimated_vram_gb": 1.01,
+      "selected_gpu": "T4",
+      "instance_type": "g4dn.xlarge",
+      "cost_per_hour": 0.526,
+      "needs_switch": false,
+      "reason": "CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K"
+    },
+    {
+      "timestamp": "2026-04-10T21:33:00.010259",
+      "day": 40,
+      "category": "drift_detection",
+      "event": "completed",
+      "features_critical": 5,
+      "features_warning": 0,
+      "feature_psi": {
+        "test_temp_c": 3.109271,
+        "cell_leakage_fa": 0.696807,
+        "retention_time_ms": 5.416688,
+        "gate_oxide_thickness_a": 5.916559,
+        "vt_shift_mv": 0.345357,
+        "trcd_ns": 5.2e-05
+      },
+      "drift_reliable": true,
+      "ref_rows": 100000,
+      "analysis_rows": 100000,
+      "low_data_warning": null
+    },
+    {
+      "timestamp": "2026-04-10T21:33:00.010403",
+      "day": 40,
+      "category": "retrain_decision",
+      "event": "triggered",
+      "should_retrain": true,
+      "reason": "5 critical features, 40d since last retrain",
+      "drift_critical": 5,
+      "days_since_retrain": 40,
+      "flags": {
+        "drift_threshold_met": true,
+        "staleness_gate_passed": true,
+        "data_reliable": true
+      }
+    },
+    {
+      "timestamp": "2026-04-10T22:34:47.369307",
+      "day": 40,
+      "category": "s3_upload",
+      "event": "error",
+      "n_files": 0,
+      "error": "Unable to locate credentials"
+    }
+  ]
+}

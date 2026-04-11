@@ -1,0 +1,84 @@
+{
+  "day": 39,
+  "phase": "phase2",
+  "start_time": "2026-04-10T20:50:28.582957",
+  "end_time": "2026-04-10T21:32:26.834388",
+  "elapsed_sec": 2518.3,
+  "events": [
+    {
+      "timestamp": "2026-04-10T20:50:55.843298",
+      "day": 39,
+      "category": "data_generation",
+      "event": "completed",
+      "rows": 5000000,
+      "parquet_mb": 213.6,
+      "scenario": "bad_model_deploy",
+      "elapsed_sec": 27.3
+    },
+    {
+      "timestamp": "2026-04-10T20:50:55.843459",
+      "day": 39,
+      "category": "infra_selection",
+      "event": "gpu_selected",
+      "model_params": 317000,
+      "estimated_vram_gb": 1.01,
+      "selected_gpu": "T4",
+      "instance_type": "g4dn.xlarge",
+      "cost_per_hour": 0.526,
+      "needs_switch": false,
+      "reason": "CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K"
+    },
+    {
+      "timestamp": "2026-04-10T20:51:01.907144",
+      "day": 39,
+      "category": "drift_detection",
+      "event": "completed",
+      "features_critical": 5,
+      "features_warning": 0,
+      "feature_psi": {
+        "test_temp_c": 3.531129,
+        "cell_leakage_fa": 0.690001,
+        "retention_time_ms": 6.048502,
+        "gate_oxide_thickness_a": 5.975668,
+        "vt_shift_mv": 0.339765,
+        "trcd_ns": 0.000245
+      },
+      "drift_reliable": true,
+      "ref_rows": 100000,
+      "analysis_rows": 100000,
+      "low_data_warning": null
+    },
+    {
+      "timestamp": "2026-04-10T20:51:01.907220",
+      "day": 39,
+      "category": "retrain_decision",
+      "event": "triggered",
+      "should_retrain": true,
+      "reason": "5 critical features, 39d since last retrain",
+      "drift_critical": 5,
+      "days_since_retrain": 39,
+      "flags": {
+        "drift_threshold_met": true,
+        "staleness_gate_passed": true,
+        "data_reliable": true
+      }
+    },
+    {
+      "timestamp": "2026-04-10T21:32:26.810237",
+      "day": 39,
+      "category": "rollback",
+      "event": "executed",
+      "from_version": "v1_original",
+      "to_version": "v1_original",
+      "reason": "Day 39 bad model deploy scenario \u2014 canary failed"
+    },
+    {
+      "timestamp": "2026-04-10T21:32:26.834220",
+      "day": 39,
+      "category": "s3_upload",
+      "event": "error",
+      "n_files": 0,
+      "error": "Unable to locate credentials"
+    }
+  ]
+}

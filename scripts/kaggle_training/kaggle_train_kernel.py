@@ -17,7 +17,7 @@ Required Kaggle environment variables (set at kaggle.com/Account > Environment V
     AWS_SECRET_ACCESS_KEY   - S3 read/write
     AWS_DEFAULT_REGION      - us-west-2
     S3_BUCKET               - p053-mlflow-artifacts
-    GITHUB_REPO_URL         - https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops.git
+    GITHUB_REPO_URL         - https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps.git
     GITHUB_TOKEN            - (optional) if repo is private
 """
 
@@ -47,7 +47,7 @@ GITHUB_REPO = config.get(
     "github_repo",
     os.environ.get(
         "GITHUB_REPO_URL",
-        "https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops.git",
+        "https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps.git",
     ),
 )
 

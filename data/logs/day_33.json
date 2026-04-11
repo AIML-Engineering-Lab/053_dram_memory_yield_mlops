@@ -1,0 +1,75 @@
+{
+  "day": 33,
+  "phase": "phase2",
+  "start_time": "2026-04-10T16:32:37.413520",
+  "end_time": "2026-04-10T17:16:44.777267",
+  "elapsed_sec": 2647.4,
+  "events": [
+    {
+      "timestamp": "2026-04-10T16:33:06.385460",
+      "day": 33,
+      "category": "data_generation",
+      "event": "completed",
+      "rows": 5000000,
+      "parquet_mb": 213.0,
+      "scenario": "post_retrain_recovery",
+      "elapsed_sec": 29.0
+    },
+    {
+      "timestamp": "2026-04-10T16:33:06.385647",
+      "day": 33,
+      "category": "infra_selection",
+      "event": "gpu_selected",
+      "model_params": 317000,
+      "estimated_vram_gb": 1.01,
+      "selected_gpu": "T4",
+      "instance_type": "g4dn.xlarge",
+      "cost_per_hour": 0.526,
+      "needs_switch": false,
+      "reason": "CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K"
+    },
+    {
+      "timestamp": "2026-04-10T16:33:10.975340",
+      "day": 33,
+      "category": "drift_detection",
+      "event": "completed",
+      "features_critical": 4,
+      "features_warning": 0,
+      "feature_psi": {
+        "test_temp_c": 3.441437,
+        "cell_leakage_fa": 0.587931,
+        "retention_time_ms": 6.031316,
+        "gate_oxide_thickness_a": 5.179196,
+        "vt_shift_mv": 0.000179,
+        "trcd_ns": 0.000177
+      },
+      "drift_reliable": true,
+      "ref_rows": 100000,
+      "analysis_rows": 100000,
+      "low_data_warning": null
+    },
+    {
+      "timestamp": "2026-04-10T16:33:10.975471",
+      "day": 33,
+      "category": "retrain_decision",
+      "event": "triggered",
+      "should_retrain": true,
+      "reason": "4 critical features, 33d since last retrain",
+      "drift_critical": 4,
+      "days_since_retrain": 33,
+      "flags": {
+        "drift_threshold_met": true,
+        "staleness_gate_passed": true,
+        "data_reliable": true
+      }
+    },
+    {
+      "timestamp": "2026-04-10T17:16:44.777017",
+      "day": 33,
+      "category": "s3_upload",
+      "event": "error",
+      "n_files": 0,
+      "error": "Unable to locate credentials"
+    }
+  ]
+}

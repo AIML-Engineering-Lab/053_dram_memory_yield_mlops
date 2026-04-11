@@ -1,0 +1,40 @@
+{
+  "day": 6,
+  "phase": "phase2",
+  "start_time": "2026-04-10T14:10:17.595994",
+  "end_time": "2026-04-10T14:10:45.782414",
+  "elapsed_sec": 28.2,
+  "events": [
+    {
+      "timestamp": "2026-04-10T14:10:45.763736",
+      "day": 6,
+      "category": "data_generation",
+      "event": "completed",
+      "rows": 5000000,
+      "parquet_mb": 213.7,
+      "scenario": "steady",
+      "elapsed_sec": 28.2
+    },
+    {
+      "timestamp": "2026-04-10T14:10:45.763991",
+      "day": 6,
+      "category": "infra_selection",
+      "event": "gpu_selected",
+      "model_params": 317000,
+      "estimated_vram_gb": 1.01,
+      "selected_gpu": "T4",
+      "instance_type": "g4dn.xlarge",
+      "cost_per_hour": 0.526,
+      "needs_switch": false,
+      "reason": "CURRENT GPU SUFFICIENT: T4 on g4dn.xlarge handles 317K"
+    },
+    {
+      "timestamp": "2026-04-10T14:10:45.782264",
+      "day": 6,
+      "category": "s3_upload",
+      "event": "error",
+      "n_files": 0,
+      "error": "Unable to locate credentials"
+    }
+  ]
+}

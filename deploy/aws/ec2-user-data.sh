@@ -80,7 +80,7 @@ echo "[4/8] Cloning repository..."
 PROJECT_DIR="/home/ec2-user/053_memory_yield_predictor"
 
 if [ ! -d "$PROJECT_DIR" ]; then
-    git clone https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops.git "$PROJECT_DIR"
+    git clone https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps.git "$PROJECT_DIR"
 fi
 cd "$PROJECT_DIR"
 chown -R ec2-user:ec2-user "$PROJECT_DIR"

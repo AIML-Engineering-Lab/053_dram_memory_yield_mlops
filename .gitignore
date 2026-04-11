@@ -51,7 +51,9 @@ docs/commnds_execution_log.txt
 # MCP config (local only)
 mcp/
 
-# Internal planning docs (not for public repo)
+# Internal docs and planning (not for public repo)
+docs/
+.github/copilot-instructions.md
 never_forget_copilot_instructions.md
 MASTER_PLAN.md
 TASKS_PLAN.md
