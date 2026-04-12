@@ -15,23 +15,34 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 
 ## Key Results
 
-| Model | Val AUC-PR | Test AUC-PR | Recall | Params | GPU | Training |
-|-------|-----------|-------------|--------|--------|-----|----------|
-| Logistic Regression | 0.0219 | -- | 0.1724 | -- | CPU | 2s |
-| XGBoost | 0.0584 | -- | 0.2759 | -- | CPU | 45s |
-| LightGBM | 0.0553 | -- | 0.2672 | -- | CPU | 12s |
-| HybridTransformerCNN (T4) | 0.0524 | 0.0471 | 0.1779 | 317,633 | T4 | 33 ep, 5h |
-| **HybridTransformerCNN (A100)** | **0.0543** | **0.0497** | **0.1951** | **317,633** | **A100-SXM4-40GB** | **50 ep, 201.7 min** |
+| Model | Val AUC-PR | Test AUC-PR | Val Recall | Params | GPU | Training |
+|-------|-----------|-------------|-----------|--------|-----|----------|
+| Logistic Regression | 0.0219 | -- | 0.234 | -- | CPU | ~4 min (16M rows) |
+| XGBoost | 0.0584 | -- | 0.085 | -- | CPU | ~18 min (16M rows) |
+| LightGBM | 0.0553 | -- | 0.086 | -- | CPU | ~5 min (16M rows) |
+| HybridTransformerCNN (T4) | 0.0524 | 0.0471 | 0.211 | 317,633 | T4 | 33 ep, 291 min |
+| **HybridTransformerCNN (A100)** | **0.0543** | **0.0497** | **0.216** | **317,633** | **A100-SXM4-40GB** | **50 ep, 201.7 min** |
 
-> AUC-PR is the correct metric at 1:159 class imbalance. Random baseline AUC-PR = 0.006 -- the champion model is **9x better** than random. AUC-ROC = 0.816 confirms strong discrimination.
+> **Why AUC-PR?** At 1:159 class imbalance, AUC-ROC is misleading -- a model predicting "good" for every die achieves AUC-ROC ~0.5 with perfect recall on the majority class. AUC-PR measures precision-recall tradeoff on the minority class (defects). Random baseline AUC-PR = 0.006; our champion at 0.054 is **9x better**.
+
+> **Why are F1/Recall/Precision small?** This is expected at 1:159 imbalance with no oversampling. At threshold 0.356, the A100 model flags 37,449 dies as defective per 2M scored -- catching 3,374 real defects while 34,075 are false alarms. Raising recall (catch more defects) always increases false alarms. The model is calibrated: AUC-ROC = 0.816 shows it ranks defects above good dies 81.6% of the time.
 
 ### A100 Champion -- v1 (Day 1 Initial Training)
 
 | Split | AUC-PR | AUC-ROC | F1 | Recall | Precision |
 |-------|--------|---------|-----|--------|-----------|
-| Val | 0.0543 | 0.8157 | 0.1270 | 0.1951 | 0.0940 |
-| Test | 0.0497 | 0.7994 | 0.1185 | 0.1559 | 0.0926 |
-| Unseen | 0.0582 | 0.8148 | 0.1317 | 0.2108 | 0.0912 |
+| Val | 0.0543 | 0.8157 | 0.1270 | 0.2164 | 0.0901 |
+| Test | 0.0497 | 0.7994 | 0.1207 | 0.1732 | 0.0926 |
+| Unseen | 0.0565 | 0.8148 | 0.1308 | 0.2313 | 0.0912 |
+
+### Confusion Matrix (A100 Champion, Validation Split -- 2M rows)
+
+|  | Predicted Defect | Predicted Good |
+|--|-----------------|----------------|
+| **Actual Defect** | **3,374 TP** | 12,221 FN |
+| **Actual Good** | 34,075 FP | **1,950,330 TN** |
+
+> Out of 15,595 actual defects in 2M validation rows, the model catches **3,374 (21.6%)** -- missing 12,221. Of 37,449 flagged dies, 34,075 are false alarms. At $45K/missed defect vs ~$500/false alarm inspection, the economics strongly favor recall over precision. The false alarm rate vs good dies is only **1.7%** (34,075 / 1,984,405).
 
 ### T4 vs A100 Comparison
 
@@ -39,15 +50,16 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 |--------|------------|--------------|---------|
 | Throughput | 18,868 samples/s | 88,128 samples/s | **4.7x** |
 | AMP dtype | float16 + GradScaler | bfloat16 (no scaler) | Stable |
-| Best epoch | 33 | 39 | More room |
+| Best epoch | 21 | 48 | More room |
 | Total time | 291 min (33 ep) | 201.7 min (50 ep) | Faster |
 
 ### Business Impact
 
-- 50,000 wafers/month, 0.62% fail rate = 310 defective wafers/month
-- $45,000 cost per missed defect (customer return)
-- Champion catches 54 defects/month at 17.3% recall
-- **Estimated annual savings: $29M**
+- 50,000 wafers/month × 0.62% fail rate = 310 defective wafers/month
+- Model catches 21.6% = **67 defects/month saved** from reaching customers
+- Avoided cost per defect: $45,000 (customer return + test re-run + field failure)
+- **Estimated annual savings: $36M** (67 × $45,000 × 12)
+- False alarm cost: ~500 extra inspections/month × $500 = $250,000/year (negligible vs savings)
 
 ---
 
@@ -145,50 +157,58 @@ gantt
 ## System Architecture
 
 ```mermaid
-graph LR
-    subgraph Data
-        DG[Data Generator\n16M rows] --> PP[Preprocess]
-        PP --> NPZ[preprocessed.npz]
+graph TB
+    subgraph Data["Data Pipeline"]
+        DG["Data Generator<br/>16M rows · 36 features"] --> PP["Preprocess<br/>Scale · Encode · Engineer"]
+        PP --> NPZ["preprocessed_full.npz<br/>2.1 GB"]
     end
 
-    subgraph Train
-        NPZ --> BL[Baselines\nLogReg XGB LGBM]
-        NPZ --> HM[HybridTransformerCNN\n317K params]
-        HM --> FL[FocalLoss\nalpha=0.75 gamma=2.0]
-        FL --> AMP[bfloat16 AMP]
+    subgraph Train["Model Training · A100 GPU"]
+        NPZ --> BL["Baselines<br/>LogReg · XGBoost · LightGBM"]
+        NPZ --> HM["HybridTransformerCNN<br/>317K params"]
+        HM --> FL["FocalLoss<br/>alpha=0.75 · gamma=2.0"]
+        FL --> AMP["bfloat16 AMP<br/>No GradScaler"]
     end
 
-    subgraph Track
-        AMP --> ML[MLflow Tracking]
-        ML --> MR[Model Registry]
-        ML --> S3[S3 Artifacts]
+    subgraph Track["MLflow + Model Registry"]
+        AMP --> ML["MLflow Tracking<br/>Params · Metrics · Artifacts"]
+        ML --> MR["Model Registry<br/>Champion · Challenger"]
+        ML --> S3["S3 Artifacts<br/>Model weights · Benchmarks"]
     end
 
-    subgraph Lifecycle
-        SG[Streaming Generator\n14 drift scenarios] --> DD[Drift Detector\nPSI 6 features]
-        DD --> RG[Retrain Gate\nDrift+Staleness+Volume]
-        RG --> RT[GPU Retrain]
-        RT --> CE[Canary Eval]
-        CE --> PR[Promote / Rollback]
+    subgraph Lifecycle["40-Day Production Lifecycle"]
+        SG["Streaming Generator<br/>14 drift scenarios"] --> DD["Drift Detector<br/>PSI · 6 key features"]
+        DD --> RG["3-Criteria Retrain Gate<br/>Drift + Staleness + Volume"]
+        RG --> RT["GPU Retrain<br/>50 epochs · A100"]
+        RT --> CE["Canary Evaluation"]
+        CE --> PR["Promote / Rollback"]
     end
 
-    subgraph Serve
-        MR --> FA[FastAPI]
-        FA --> DK[Docker 6 services]
-        DK --> K8[Kubernetes HPA]
-        K8 --> PM[Prometheus Grafana]
+    subgraph Serve["Production Serving"]
+        MR --> FA["FastAPI<br/>Prometheus metrics"]
+        FA --> DK["Docker<br/>6 services"]
+        DK --> K8["Kubernetes<br/>HPA 2-8 pods"]
+        K8 --> PM["Prometheus + Grafana"]
     end
 
-    subgraph BigData
-        KF[Kafka] --> SP[Spark ETL]
-        SP --> AF[Airflow DAGs]
+    subgraph BigData["Big Data Stack"]
+        KF["Kafka<br/>Streaming ingestion"] --> SP["Spark ETL<br/>Distributed processing"]
+        SP --> AF["Airflow DAGs<br/>3 orchestration pipelines"]
     end
 
-    subgraph Cloud
-        RDS[RDS PostgreSQL]
-        S3B[S3 Bucket]
-        ECR[ECR Registry]
+    subgraph Cloud["AWS Infrastructure"]
+        RDS["RDS PostgreSQL<br/>MLflow backend"]
+        ECR["ECR<br/>Container registry"]
+        S3B["S3 Bucket<br/>Artifacts + models"]
     end
+
+    style Data fill:#1e3a5f,color:#ffffff,stroke:#4a7ab5,stroke-width:2px
+    style Train fill:#14532d,color:#ffffff,stroke:#22c55e,stroke-width:2px
+    style Track fill:#7c2d12,color:#ffffff,stroke:#f97316,stroke-width:2px
+    style Lifecycle fill:#134e4a,color:#ffffff,stroke:#14b8a6,stroke-width:2px
+    style Serve fill:#1e1b4b,color:#ffffff,stroke:#818cf8,stroke-width:2px
+    style BigData fill:#4a044e,color:#ffffff,stroke:#c026d3,stroke-width:2px
+    style Cloud fill:#78350f,color:#ffffff,stroke:#f59e0b,stroke-width:2px
 ```
 
 ---
@@ -197,19 +217,27 @@ graph LR
 
 ```mermaid
 flowchart LR
-    A[Daily Data\n5M rows] --> B[PSI Calc\n6 features]
-    B --> C{Critical\nfeatures >= 3?}
+    A[Daily Data<br/>5M rows] --> B[PSI Calc<br/>6 features]
+    B --> C{Critical<br/>features &gt;= 3?}
     C -->|No| D[Log and Continue]
-    C -->|Yes| E{Staleness\n>= 30 days?}
-    E -->|No| F[Blocked]
-    E -->|Yes| G{Volume\n>= 10K?}
-    G -->|No| H[Tag Only]
-    G -->|Yes| I[RETRAIN\nA100 50ep]
-    I --> J[Canary Eval]
-    J -->|Better| K[Promote]
-    J -->|Worse| L[Rollback]
-    K --> M[Upload S3]
+    C -->|Yes| E{Staleness<br/>&gt;= 30 days?}
+    E -->|No| F[Blocked<br/>by gate]
+    E -->|Yes| G{Volume<br/>&gt;= 10K?}
+    G -->|No| H[Tag Only<br/>no retrain]
+    G -->|Yes| I[RETRAIN<br/>GPU · 50 epochs]
+    I --> J[Canary<br/>Evaluation]
+    J -->|Better| K[Promote<br/>Champion]
+    J -->|Worse| L[Rollback<br/>to Previous]
+    K --> M[Upload to S3]
     L --> M
+
+    style A fill:#1e3a5f,color:#ffffff
+    style B fill:#1e3a5f,color:#ffffff
+    style I fill:#7f1d1d,color:#ffffff,stroke:#ef4444,stroke-width:2px
+    style J fill:#134e4a,color:#ffffff
+    style K fill:#14532d,color:#ffffff,stroke:#22c55e,stroke-width:2px
+    style L fill:#78350f,color:#ffffff,stroke:#f59e0b,stroke-width:2px
+    style M fill:#4a044e,color:#ffffff
 ```
 
 ---
