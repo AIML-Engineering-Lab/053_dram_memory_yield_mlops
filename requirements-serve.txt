@@ -9,3 +9,5 @@ uvicorn>=0.24
 prometheus-client>=0.19
 pydantic>=2.5
 scipy>=1.11
+matplotlib>=3.8
+redis>=5.0
