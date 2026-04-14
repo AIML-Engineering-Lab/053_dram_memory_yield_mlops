@@ -1,5 +1,9 @@
 # P053 — Serving Dependencies (minimal for Docker container)
 # Separate from full requirements.txt to keep container small
+#
+# PyTorch CPU-only: ~200MB vs ~2.5GB with CUDA.
+# Inference container does NOT need GPU.
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.0
 numpy>=1.24
 scikit-learn>=1.3
