@@ -17,10 +17,12 @@ from pathlib import Path
 # Paths
 # ═══════════════════════════════════════════════════════════════
 
-ROOT = Path(__file__).resolve().parent.parent
+# Handle both local dev (project_root/src/config.py) and Docker flat layout (/app/config.py)
+_here = Path(__file__).resolve().parent
+ROOT = _here.parent if (_here.parent / "src").is_dir() else _here
+SRC_DIR = ROOT / "src" if (ROOT / "src").is_dir() else ROOT
 DATA_DIR = ROOT / "data"
 ASSETS_DIR = ROOT / "assets"
-SRC_DIR = ROOT / "src"
 ARTIFACTS_DIR = SRC_DIR / "artifacts"
 MODELS_DIR = ROOT / "models"
 DEPLOY_DIR = ROOT / "deploy"
