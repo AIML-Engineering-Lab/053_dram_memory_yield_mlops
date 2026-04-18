@@ -37,7 +37,11 @@ body{background:#111;font-family:'Inter',sans-serif;padding:20px}
   position:relative;overflow:hidden;margin:0 auto 24px;
   page-break-after:always;display:flex;flex-direction:column;padding:50px 66px 78px;
 }
-.slide.last{page-break-after:avoid}
+.slide.last{page-break-after:avoid;margin-bottom:0}
+@media print{
+  html,body{padding:0;margin:0;background:transparent}
+  .slide.last{page-break-after:avoid;margin-bottom:0}
+}
 .slide::before{content:'';position:absolute;top:0;left:0;right:0;height:5px;
   background:linear-gradient(90deg,var(--cyan),var(--green),var(--orange))}
 .footer{position:absolute;bottom:26px;left:66px;right:66px;
@@ -112,8 +116,11 @@ s1 = f"""  <div style="display:flex;flex-direction:column;flex:1;gap:12px">
       <div class="ao">Zero human intervention</div>
     </div>
     <div style="color:var(--muted);font-size:19px">HybridTransformerCNN &middot; Airflow &middot; Kafka &middot; Spark &middot; MLflow &middot; K8s &middot; Prometheus</div>
-    <div class="img-box img-box-contain" style="flex:1;min-height:0;margin-top:8px;max-height:78%;max-width:88%;align-self:center">
-      <img src="data:image/png;base64,{imgs['wafer']}" alt="Wafer map">
+    <div class="img-box img-box-contain" style="flex:1;min-height:0;margin-top:8px;max-height:62%;max-width:92%;align-self:center">
+      <img src="data:image/png;base64,{imgs['day40']}" alt="Day 40 drift density">
+    </div>
+    <div style="font-size:16px;color:var(--muted);text-align:center;margin-top:4px">
+      Day 40: retention_time_ms drift (top), PSI timeline with retrain + rollback events (middle), AUC-PR degradation + recovery (bottom)
     </div>
   </div>
   <div class="stats-row">
