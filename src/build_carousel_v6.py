@@ -7,10 +7,26 @@ Fixed: blank page at end removed
 Total: 11 slides (was 13)
 """
 
-import json
+import base64
 from pathlib import Path
 
-imgs = json.load(open("/tmp/carousel_imgs.json"))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ASSETS_DIR = PROJECT_ROOT / "assets"
+
+
+def _load_base64_image(filename: str) -> str:
+  return base64.b64encode((ASSETS_DIR / filename).read_bytes()).decode("ascii")
+
+
+imgs = {
+  "day40": _load_base64_image("drift_3panel_day40.png"),
+  "class_dist": _load_base64_image("p53_01_eda_class_distribution.png"),
+  "training": _load_base64_image("p53_39_a100_training_results.png"),
+  "drift_heat": _load_base64_image("p53_33_drift_timeline.png"),
+  "monitoring": _load_base64_image("p53_32_monitoring_dashboard.png"),
+  "hw_bench": _load_base64_image("p53_40_hardware_benchmark.png"),
+  "sim_summary": _load_base64_image("p53_37_simulation_summary.png"),
+}
 
 # Strip the data URI prefix if it's already included (some images cached with prefix)
 PREFIX = "data:image/png;base64,"
@@ -25,6 +41,7 @@ for k, v in imgs.items():
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+@page{size:1080px 1350px;margin:0}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#0D1B2E;--bg2:#0F2338;--card:#152540;--border:#1E3A5F;
@@ -40,6 +57,7 @@ body{background:#111;font-family:'Inter',sans-serif;padding:20px}
 .slide.last{page-break-after:avoid;margin-bottom:0}
 @media print{
   html,body{padding:0;margin:0;background:transparent}
+  .slide{margin:0}
   .slide.last{page-break-after:avoid;margin-bottom:0}
 }
 .slide::before{content:'';position:absolute;top:0;left:0;right:0;height:5px;

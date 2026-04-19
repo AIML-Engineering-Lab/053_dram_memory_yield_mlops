@@ -9,10 +9,29 @@
 - Confusion matrix interpretation
 """
 
-import json
+import base64
 from pathlib import Path
 
-imgs = json.load(open("/tmp/carousel_imgs.json"))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ASSETS_DIR = PROJECT_ROOT / "assets"
+
+
+def _load_base64_image(filename: str) -> str:
+  return base64.b64encode((ASSETS_DIR / filename).read_bytes()).decode("ascii")
+
+
+imgs = {
+  "wafer": _load_base64_image("p53_04_eda_spatial_wafer.png"),
+  "class_dist": _load_base64_image("p53_01_eda_class_distribution.png"),
+  "training": _load_base64_image("p53_39_a100_training_results.png"),
+  "drift_heat": _load_base64_image("p53_33_drift_timeline.png"),
+  "architecture": _load_base64_image("p53_28_architecture.png"),
+  "monitoring": _load_base64_image("p53_32_monitoring_dashboard.png"),
+  "hw_bench": _load_base64_image("p53_40_hardware_benchmark.png"),
+  "sim_summary": _load_base64_image("p53_37_simulation_summary.png"),
+  "day40": _load_base64_image("drift_3panel_day40.png"),
+  "deployment": _load_base64_image("p53_30_deployment_stack.png"),
+}
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');

@@ -2,7 +2,8 @@
 P053 — Post-Simulation Update Script
 ======================================
 Run this AFTER copying simulation results back from Colab/S3 to the workspace.
-Regenerates all plots, updates the dashboard, and prints a checklist.
+Regenerates all plots, rebuilds the carousel HTML, updates the dashboard,
+and prints a checklist.
 
 Usage:
     python -m src.post_simulation_update
@@ -10,7 +11,7 @@ Usage:
 What it does:
     1. Validate simulation_timeline.json is present and complete
     2. Regenerate simulation charts (plot_simulation_results.py)
-    3. Copy new charts to assets/
+    3. Rebuild docs/carousel.html from the latest repo assets
     4. Print dashboard update instructions (web/dashboard.html auto-reads the JSON)
     5. Print report update checklist
     6. Show what to commit
@@ -118,9 +119,36 @@ def regenerate_charts() -> bool:
         return False
 
 
+def rebuild_carousel_html() -> bool:
+    """Run build_carousel_v6.py so docs/carousel.html matches current assets."""
+    print("\n[3/6] Rebuilding carousel HTML...")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "src.build_carousel_v6"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode == 0:
+        carousel_html = PROJECT_ROOT / "docs" / "carousel.html"
+        if carousel_html.exists():
+            size_kb = carousel_html.stat().st_size / 1e3
+            print(f"  ✅ Carousel rebuilt: docs/carousel.html ({size_kb:.0f} KB)")
+            print("     Export docs/carousel.pdf after review if you need a refreshed document artifact.")
+        else:
+            print("  ⚠️  build_carousel_v6 completed but docs/carousel.html was not found.")
+        return True
+
+    print(f"  ❌ Carousel rebuild failed (exit {result.returncode})")
+    if result.stderr:
+        print(f"     STDERR: {result.stderr[-400:]}")
+    return False
+
+
 def print_dashboard_status() -> None:
     """The dashboard reads simulation_timeline.json directly — no update needed."""
-    print("\n[3/5] Dashboard status...")
+    print("\n[4/6] Dashboard status...")
     dashboard = PROJECT_ROOT / "web" / "dashboard.html"
     if dashboard.exists():
         print("  ✅ web/dashboard.html exists")
@@ -132,7 +160,7 @@ def print_dashboard_status() -> None:
 
 def print_report_checklist() -> None:
     """Print what needs manual attention for the HTML report."""
-    print("\n[4/5] Report update checklist...")
+    print("\n[5/6] Report update checklist...")
     report = PROJECT_ROOT / "docs" / "Memory_Yield_Predictor_Report.html"
     if report.exists():
         size_mb = report.stat().st_size / 1e6
@@ -143,13 +171,14 @@ def print_report_checklist() -> None:
     print("  Manual steps after this script:")
     print("    1. Open web/dashboard.html → verify timeline looks correct")
     print("    2. Check assets/p53_33_drift_timeline.png, p53_34_retrain_story.png")
-    print("    3. Tell Copilot: 'embed simulation charts in docs/Memory_Yield_Predictor_Report.html'")
-    print("    4. Tell Copilot: 'generate PDF report with Playwright'")
+    print("    3. Review docs/carousel.html, then export docs/carousel.pdf if needed")
+    print("    4. Tell Copilot: 'embed simulation charts in docs/Memory_Yield_Predictor_Report.html'")
+    print("    5. Tell Copilot: 'generate PDF report with Playwright'")
 
 
 def print_git_checklist() -> None:
     """Print what to commit."""
-    print("\n[5/5] Git commit checklist...")
+    print("\n[6/6] Git commit checklist...")
     result = subprocess.run(
         ["git", "status", "--short"],
         cwd=str(PROJECT_ROOT),
@@ -179,12 +208,13 @@ def main() -> None:
 
     validate_simulation_results()
     charts_ok = regenerate_charts()
+    carousel_ok = rebuild_carousel_html() if charts_ok else False
     print_dashboard_status()
     print_report_checklist()
     print_git_checklist()
 
     print("\n" + "=" * 70)
-    if charts_ok:
+    if charts_ok and carousel_ok:
         print("✅ Post-simulation update complete.")
     else:
         print("⚠️  Partial update — check errors above.")
