@@ -56,12 +56,24 @@ echo "  Compose: $(docker compose version)"
 
 # ─── 3. NVIDIA drivers + container toolkit ───
 echo "[3/8] Installing NVIDIA drivers..."
-dnf install -y kernel-devel-$(uname -r) gcc
+# AL2023 kernel6.18 uses kernel6.18-devel, NOT kernel-devel-$(uname -r)
+dnf install -y kernel6.18-devel gcc
 
 # NVIDIA driver (Amazon Linux 2023)
+# Use nvidia-open (open-source DKMS modules) — works on AL2023 kernel 6.18+
+# nvidia-driver-latest-dkms and cuda-drivers do NOT exist in the AL2023 CUDA repo
 if ! command -v nvidia-smi &>/dev/null; then
-    dnf install -y https://developer.download.nvidia.com/compute/cuda/repos/amzn2023/x86_64/cuda-amzn2023.repo 2>/dev/null || true
-    dnf install -y nvidia-driver-latest-dkms cuda-toolkit-12-4
+    # Add NVIDIA CUDA repo for AL2023
+    dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/amzn2023/x86_64/cuda-amzn2023.repo 2>/dev/null || true
+    dnf install -y nvidia-open
+    # Re-add DKMS module and install for current kernel
+    KVER=$(uname -r)
+    NVER=$(dkms status 2>/dev/null | grep nvidia | head -1 | cut -d',' -f1 | cut -d'/' -f2 || echo "")
+    if [ -n "$NVER" ]; then
+        dkms install "nvidia/$NVER" -k "$KVER" 2>/dev/null || true
+    fi
+    modprobe nvidia 2>/dev/null || true
+    modprobe nvidia-uvm 2>/dev/null || true
 fi
 
 # NVIDIA Container Toolkit

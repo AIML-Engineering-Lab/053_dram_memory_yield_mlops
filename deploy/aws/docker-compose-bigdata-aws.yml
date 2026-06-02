@@ -93,7 +93,7 @@ services:
 
   # ─── SPARK CLUSTER ──────────────────────────────────────────
   spark-master:
-    image: bitnami/spark:3.5.1
+    image: bitnami/spark:latest
     container_name: p053-spark-master
     ports:
       - "8080:8080"
@@ -117,7 +117,7 @@ services:
           memory: 1G
 
   spark-worker-1:
-    image: bitnami/spark:3.5.1
+    image: bitnami/spark:latest
     container_name: p053-spark-worker-1
     depends_on:
       spark-master:
@@ -136,7 +136,7 @@ services:
           memory: 2560M
 
   spark-worker-2:
-    image: bitnami/spark:3.5.1
+    image: bitnami/spark:latest
     container_name: p053-spark-worker-2
     depends_on:
       spark-master:
@@ -213,24 +213,27 @@ services:
       # AWS credentials (IAM role handles auth on EC2)
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-west-2}
       S3_BUCKET: ${S3_BUCKET:-p053-mlflow-artifacts}
-      # MLflow pointing to real RDS
-      MLFLOW_TRACKING_URI: postgresql://mlflow:${MLFLOW_DB_PASSWORD}@${MLFLOW_DB_HOST}:5432/mlflow
-      MLFLOW_ARTIFACT_ROOT: s3://${S3_BUCKET:-p053-mlflow-artifacts}/mlartifacts/
+      # MLflow pointing to local container
+      MLFLOW_TRACKING_URI: http://p053-mlflow-local:5000
+      MLFLOW_ARTIFACT_ROOT: /opt/airflow/mlartifacts
+      AIRFLOW__WEBSERVER__WORKERS: "2"
+      AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT: "300"
     command: webserver
     volumes:
       - ../airflow/dags:/opt/airflow/dags
       - ../../data:/opt/airflow/data
       - ../../src:/opt/airflow/src
       - ../../models:/opt/airflow/models
+      - ../../mlartifacts:/opt/airflow/mlartifacts
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
-      timeout: 10s
-      retries: 5
+      timeout: 30s
+      retries: 10
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 2G
 
   # Scheduler has GPU access for running training tasks
   airflow-scheduler:
@@ -247,9 +250,9 @@ services:
       # AWS credentials (IAM role handles auth on EC2)
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-west-2}
       S3_BUCKET: ${S3_BUCKET:-p053-mlflow-artifacts}
-      # MLflow pointing to real RDS
-      MLFLOW_TRACKING_URI: postgresql://mlflow:${MLFLOW_DB_PASSWORD}@${MLFLOW_DB_HOST}:5432/mlflow
-      MLFLOW_ARTIFACT_ROOT: s3://${S3_BUCKET:-p053-mlflow-artifacts}/mlartifacts/
+      # MLflow pointing to local container
+      MLFLOW_TRACKING_URI: http://p053-mlflow-local:5000
+      MLFLOW_ARTIFACT_ROOT: /opt/airflow/mlartifacts
       # NVIDIA GPU visibility
       NVIDIA_VISIBLE_DEVICES: all
     command: scheduler

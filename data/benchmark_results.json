@@ -1,0 +1,38 @@
+{
+  "tests": [
+    {
+      "n_days": 1,
+      "approx_rows": 5000000,
+      "pandas": {
+        "tool": "pandas",
+        "days": 1,
+        "day_list": [
+          1
+        ],
+        "rows": 1000000,
+        "ingest_sec": 0.3,
+        "feature_eng_sec": 0.026,
+        "aggregation_sec": 0.04,
+        "imputation_sec": 0.919,
+        "total_sec": 1.285,
+        "status": "success",
+        "peak_memory_gb": 0.39
+      },
+      "spark": {
+        "tool": "pyspark",
+        "days": 1,
+        "day_list": [
+          1
+        ],
+        "rows": 1000000,
+        "ingest_sec": 1502.107,
+        "feature_eng_sec": 0.61,
+        "aggregation_sec": 1.549,
+        "imputation_sec": 5.908,
+        "total_sec": 1510.175,
+        "status": "success"
+      }
+    }
+  ],
+  "available_days": 40
+}
