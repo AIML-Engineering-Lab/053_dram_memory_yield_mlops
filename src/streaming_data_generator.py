@@ -56,7 +56,10 @@ from src.data_generator import (
 )
 
 PRODUCTION_DIR = DATA_DIR / "production"
-PRODUCTION_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    PRODUCTION_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    pass  # Directory managed externally (e.g., Airflow container bind-mount)
 
 ROWS_PER_DAY = 5_000_000  # 50K wafers × 100 die/wafer
 
