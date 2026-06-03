@@ -70,10 +70,14 @@ def detect_hardware():
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
         else:
-            # T4/V100 (cc < 8.0): float16 with GradScaler
-            amp_dtype = "float16"
+            # T4/V100 (cc < 8.0): force bfloat16 WITHOUT GradScaler (ED-004)
+            # float16+GradScaler causes death spiral with FocalLoss extreme gradients.
+            # bfloat16's 8-bit exponent absorbs gradient spikes — no GradScaler needed.
+            # T4 lacks hardware bfloat16 tensor cores; PyTorch uses software emulation
+            # (~10-15% slower than float16 AMP) but training stability is non-negotiable.
+            amp_dtype = "bfloat16"
             use_amp = True
-            use_gradscaler = True
+            use_gradscaler = False
 
         device = torch.device("cuda")
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
