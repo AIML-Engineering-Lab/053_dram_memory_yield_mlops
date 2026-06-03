@@ -8,11 +8,12 @@ import json
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.animation import FuncAnimation, PillowWriter
+import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 # ── Load simulation data ────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parents[1]

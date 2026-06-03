@@ -333,7 +333,207 @@ jobs:
             --region "$AWS_REGION" 2>/dev/null || true
           echo "RDS stop command sent"
 
-      # ── 12. Summary ───────────────────────────────────────────────
+      # ── 12. Build HTML email body ──────────────────────────────────
+      - name: Build HTML email report
+        if: always()
+        env:
+          DAY: ${{ steps.state.outputs.current_day }}
+          JOB_STATUS: ${{ job.status }}
+          EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
+          CHAMPION: ${{ steps.state.outputs.champion_model }}
+        run: |
+          STATUS="${{ job.status }}"
+          DAY="${{ steps.state.outputs.current_day }}"
+          DAY_PADDED=$(printf '%02d' ${DAY:-0})
+          NOW=$(date -u +"%B %d, %Y %H:%M UTC")
+          NEXT_DAY=$((${DAY:-0} + 1))
+          DAYS_LEFT=$((40 - ${DAY:-0}))
+
+          # Read drift report if available
+          DRIFT_JSON=$(aws s3 cp "s3://$S3_BUCKET/drift_reports/day_${DAY_PADDED}_drift.json" - 2>/dev/null || echo '{}')
+          DRIFT_DETECTED=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('should_retrain', False))" 2>/dev/null || echo "false")
+          PSI_MAX=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d.get('max_psi', 0), 4))" 2>/dev/null || echo "N/A")
+          CRITICAL_FEATS=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('features_critical', 0))" 2>/dev/null || echo "0")
+
+          if [ "$STATUS" = "success" ]; then
+            STATUS_BG="#1a472a"
+            STATUS_BORDER="#22c55e"
+            STATUS_TEXT="#22c55e"
+            STATUS_ICON="✅"
+            STATUS_LABEL="SUCCESS"
+            HEADLINE="Day ${DAY} pipeline completed successfully"
+          else
+            STATUS_BG="#4a1515"
+            STATUS_BORDER="#ef4444"
+            STATUS_TEXT="#ef4444"
+            STATUS_ICON="❌"
+            STATUS_LABEL="FAILED"
+            HEADLINE="Day ${DAY} pipeline encountered an error — check logs"
+          fi
+
+          if [ "$DRIFT_DETECTED" = "True" ]; then
+            DRIFT_BADGE='<span style="background:#78350f;color:#fbbf24;padding:3px 10px;border-radius:12px;font-size:13px;font-weight:700">⚠ DRIFT DETECTED</span>'
+            DRIFT_STATUS="GPU retraining triggered"
+          else
+            DRIFT_BADGE='<span style="background:#14532d;color:#22c55e;padding:3px 10px;border-radius:12px;font-size:13px;font-weight:700">✓ NO DRIFT</span>'
+            DRIFT_STATUS="Model stable — no retraining needed"
+          fi
+
+          python3 << PYEOF
+          day = "$DAY"
+          next_day = "$NEXT_DAY"
+          days_left = "$DAYS_LEFT"
+          status_bg = "$STATUS_BG"
+          status_border = "$STATUS_BORDER"
+          status_text = "$STATUS_TEXT"
+          status_icon = "$STATUS_ICON"
+          status_label = "$STATUS_LABEL"
+          headline = "$HEADLINE"
+          drift_badge = """$DRIFT_BADGE"""
+          drift_status = "$DRIFT_STATUS"
+          psi_max = "$PSI_MAX"
+          critical_feats = "$CRITICAL_FEATS"
+          champion = "$CHAMPION"
+          now = "$NOW"
+          ec2_ip = "$EC2_IP"
+          run_url = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          pct = int(day) * 100 // 40
+
+          html = f"""<!DOCTYPE html>
+          <html>
+          <head><meta charset="utf-8"></head>
+          <body style="margin:0;padding:0;background:#0d1117;font-family:'Segoe UI',Arial,sans-serif">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;padding:24px 0">
+          <tr><td align="center">
+          <table width="620" cellpadding="0" cellspacing="0" style="background:#161b22;border-radius:12px;overflow:hidden;border:1px solid #30363d">
+
+            <!-- Header -->
+            <tr><td style="background:linear-gradient(135deg,#1e3a5f 0%,#0d1b2e 100%);padding:28px 32px;text-align:center">
+              <div style="font-size:13px;color:#58a6ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">P053 — DRAM Memory Yield MLOps</div>
+              <div style="font-size:26px;font-weight:700;color:#f0f6fc">Daily Production Pipeline</div>
+              <div style="font-size:14px;color:#8b949e;margin-top:6px">{now}</div>
+            </td></tr>
+
+            <!-- Status Banner -->
+            <tr><td style="padding:20px 32px 0">
+              <div style="background:{status_bg};border:1px solid {status_border};border-radius:10px;padding:16px 20px;text-align:center">
+                <div style="font-size:24px;font-weight:800;color:{status_text}">{status_icon} {status_label}</div>
+                <div style="font-size:14px;color:#c9d1d9;margin-top:6px">{headline}</div>
+              </div>
+            </td></tr>
+
+            <!-- Progress Bar -->
+            <tr><td style="padding:20px 32px 0">
+              <div style="font-size:12px;color:#8b949e;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Simulation Progress — Day {day} of 40</div>
+              <div style="background:#21262d;border-radius:6px;height:16px;overflow:hidden">
+                <div style="background:linear-gradient(90deg,#1d4ed8,#3b82f6);height:16px;width:{pct}%;border-radius:6px;transition:width 0.3s"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:6px">
+                <span style="font-size:12px;color:#3b82f6;font-weight:700">{pct}% complete</span>
+                <span style="font-size:12px;color:#8b949e">{days_left} days remaining</span>
+              </div>
+            </td></tr>
+
+            <!-- Metrics Grid -->
+            <tr><td style="padding:20px 32px 0">
+              <table width="100%" cellpadding="0" cellspacing="8">
+              <tr>
+                <td width="33%" style="background:#21262d;border-radius:8px;padding:14px;text-align:center;border:1px solid #30363d">
+                  <div style="font-size:28px;font-weight:800;color:#58a6ff">{day}</div>
+                  <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-top:4px">Current Day</div>
+                </td>
+                <td width="33%" style="background:#21262d;border-radius:8px;padding:14px;text-align:center;border:1px solid #30363d">
+                  <div style="font-size:28px;font-weight:800;color:#f0883e">{psi_max}</div>
+                  <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-top:4px">Max PSI Score</div>
+                </td>
+                <td width="33%" style="background:#21262d;border-radius:8px;padding:14px;text-align:center;border:1px solid #30363d">
+                  <div style="font-size:28px;font-weight:800;color:#e879f9">{critical_feats}</div>
+                  <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-top:4px">Critical Features</div>
+                </td>
+              </tr>
+              </table>
+            </td></tr>
+
+            <!-- Drift Status -->
+            <tr><td style="padding:16px 32px 0">
+              <div style="background:#21262d;border:1px solid #30363d;border-radius:8px;padding:14px 18px">
+                <div style="font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Drift Detection</div>
+                <div>{drift_badge}</div>
+                <div style="font-size:14px;color:#c9d1d9;margin-top:8px">{drift_status}</div>
+              </div>
+            </td></tr>
+
+            <!-- Today's Activities -->
+            <tr><td style="padding:16px 32px 0">
+              <div style="background:#21262d;border:1px solid #30363d;border-radius:8px;padding:14px 18px">
+                <div style="font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Today's Pipeline Activities</div>
+                <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;color:#c9d1d9">
+                  <tr><td style="color:#22c55e;padding-right:10px">→</td><td>Generated 5M rows synthetic DRAM production data</td></tr>
+                  <tr><td style="color:#22c55e;padding-right:10px">→</td><td>Published events to Kafka topic <code style="color:#58a6ff">yield-events</code></td></tr>
+                  <tr><td style="color:#22c55e;padding-right:10px">→</td><td>Spark ETL processed batch → Parquet on S3</td></tr>
+                  <tr><td style="color:#22c55e;padding-right:10px">→</td><td>PSI drift detection run against baseline (Days 1-8)</td></tr>
+                  <tr><td style="color:{"#fbbf24" if drift_status != "Model stable — no retraining needed" else "#6b7280"};padding-right:10px">→</td>
+                      <td>{"GPU retrain triggered (T4, 50 epochs)" if drift_status != "Model stable — no retraining needed" else "No retraining needed — champion model retained"}</td></tr>
+                  <tr><td style="color:#22c55e;padding-right:10px">→</td><td>Artifacts uploaded to S3</td></tr>
+                </table>
+              </div>
+            </td></tr>
+
+            <!-- Champion Model -->
+            <tr><td style="padding:16px 32px 0">
+              <div style="background:#21262d;border:1px solid #30363d;border-radius:8px;padding:14px 18px">
+                <div style="font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Champion Model</div>
+                <div style="font-size:13px;color:#58a6ff;word-break:break-all;font-family:monospace">{champion or "s3://p053-mlflow-artifacts/models/day1_champion_t4.pt"}</div>
+              </div>
+            </td></tr>
+
+            <!-- Next Steps -->
+            <tr><td style="padding:16px 32px 0">
+              <div style="background:#0d2137;border:1px solid #1d4ed8;border-radius:8px;padding:14px 18px">
+                <div style="font-size:13px;color:#58a6ff;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">⏭ Tomorrow — Day {next_day}</div>
+                <div style="font-size:13px;color:#c9d1d9">GitHub Actions cron triggers at 00:00 UTC · {"~2h (inference only)" if int(day)+1 < 30 else "~7.5h (retrain day expected near Day 30)"}</div>
+              </div>
+            </td></tr>
+
+            <!-- Footer -->
+            <tr><td style="padding:20px 32px 24px">
+              <div style="text-align:center">
+                <a href="{run_url}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600">View Full Workflow Logs</a>
+              </div>
+              <div style="text-align:center;font-size:11px;color:#484f58;margin-top:16px">
+                P053 DRAM Memory Yield Predictor · EC2 g4dn.xlarge (Tesla T4) · GitHub Actions Daily Cron<br>
+                EC2: {ec2_ip} · S3: s3://p053-mlflow-artifacts
+              </div>
+            </td></tr>
+
+          </table>
+          </td></tr>
+          </table>
+          </body>
+          </html>"""
+
+          with open('/tmp/email_body.html', 'w') as f:
+              f.write(html)
+          print("HTML email body written to /tmp/email_body.html")
+          PYEOF
+
+      # ── 13. Send HTML email notification ──────────────────────────
+      - name: Send HTML email notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: rajendar.mi46@gmail.com
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "P053 Day ${{ steps.state.outputs.current_day }}/40 — ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }} | DRAM Yield Pipeline"
+          to: rajendar.mi46@gmail.com
+          from: "P053 MLOps <rajendar.mi46@gmail.com>"
+          html_body: file:///tmp/email_body.html
+          ignore_cert: true
+
+      # ── 14. Summary ───────────────────────────────────────────────
       - name: Pipeline summary
         if: always()
         env:

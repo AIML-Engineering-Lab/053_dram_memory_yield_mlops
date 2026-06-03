@@ -171,7 +171,7 @@ s3 = f"""  <div class="tag tag-cyan" style="margin-bottom:18px">A100 GPU Trainin
   </div>"""
 
 # ── SLIDE 4: bfloat16 death spiral ──
-s4 = f"""  <div class="tag tag-red" style="margin-bottom:20px">Critical Engineering Insight</div>
+s4 = """  <div class="tag tag-red" style="margin-bottom:20px">Critical Engineering Insight</div>
   <h2 style="margin-bottom:16px">The <span class="ar">float16 Death Spiral</span><br>that killed 4 training runs</h2>
   <div class="g2" style="margin-bottom:14px">
     <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:18px">
@@ -224,7 +224,7 @@ s5 = f"""  <div class="tag tag-cyan" style="margin-bottom:16px">40-Day PSI Drift
   </ul>"""
 
 # ── SLIDE 6: Retrain Gate ──
-s6 = f"""  <div class="tag tag-orange" style="margin-bottom:16px">Retrain Logic</div>
+s6 = """  <div class="tag tag-orange" style="margin-bottom:16px">Retrain Logic</div>
   <h2 style="margin-bottom:14px;font-size:42px">3-gate retrain trigger.<br><span class="ao">All 3 must be TRUE.</span></h2>
   <div style="display:flex;gap:14px;margin-bottom:14px">
     <div class="card" style="flex:1;border-left:4px solid var(--cyan)">
@@ -262,7 +262,7 @@ s6 = f"""  <div class="tag tag-orange" style="margin-bottom:16px">Retrain Logic<
   </div>"""
 
 # ── SLIDE 7: Production Infrastructure ──
-s7 = f"""  <div class="tag tag-green" style="margin-bottom:16px">Production Infrastructure</div>
+s7 = """  <div class="tag tag-green" style="margin-bottom:16px">Production Infrastructure</div>
   <h2 style="margin-bottom:16px;font-size:42px">6 services. One command.<br><span class="ag">Fully orchestrated.</span></h2>
   <div class="g2" style="margin-bottom:14px">
     <div class="card"><div style="font-size:21px;font-weight:700;color:var(--cyan);margin-bottom:5px">Apache Airflow</div>

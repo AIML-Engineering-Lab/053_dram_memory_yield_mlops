@@ -10,15 +10,17 @@ Animated GIF showing HybridTransformerCNN architecture data flow.
 6. Final prediction (pass/fail)
 """
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 import io
-from PIL import Image
 from pathlib import Path
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from PIL import Image
 
 # ── Style ──
 DARK_BG  = "#0D1B2E"
@@ -272,4 +274,4 @@ print(f"GIF saved: {out} ({out.stat().st_size // 1024}KB, {len(frames)} frames)"
 
 # Also save final frame as static PNG for carousel
 all_frame.save("assets/hybrid_architecture_static.png", "PNG")
-print(f"Static PNG saved: assets/hybrid_architecture_static.png")
+print("Static PNG saved: assets/hybrid_architecture_static.png")

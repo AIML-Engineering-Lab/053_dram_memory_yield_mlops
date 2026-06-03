@@ -6,15 +6,20 @@ Panel 2: Daily PSI time series building up day by day with threshold zones
 Panel 3: Model AUC-PR over time showing degradation, retrain recovery, rollback
 """
 
-import json, glob, math
-import numpy as np
+import glob
+import json
+import math
+
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+from pathlib import Path
+
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from scipy.stats import norm
-from pathlib import Path
 
 # ── Load data ──────────────────────────────────────────────────────────────
 drift_files = sorted(glob.glob("data/drift_reports/drift_day_*.json"))
@@ -126,8 +131,10 @@ plt.rcParams.update({
 })
 
 def classify_psi(psi):
-    if psi >= 0.2:  return (RED, "Critical")
-    if psi >= 0.1:  return (YELLOW, "Warning")
+    if psi >= 0.2:
+        return (RED, "Critical")
+    if psi >= 0.1:
+        return (YELLOW, "Warning")
     return (GREEN, "Stable")
 
 # ── Build 40 frames ──────────────────────────────────────────────────────────
@@ -298,6 +305,7 @@ for frame_day in all_days:
 
     # ── save frame to buffer ──
     import io
+
     from PIL import Image
     buf = io.BytesIO()
     plt.savefig(buf, format="png", dpi=108, bbox_inches="tight",
@@ -334,6 +342,7 @@ frames[0].save(
 )
 # Also write to docs for display
 import shutil
+
 shutil.copy(out_path, "docs/drift_density_animation.gif")
 print(f"GIF saved: {out_path} ({out_path.stat().st_size//1024}KB)")
-print(f"Also at:   docs/drift_density_animation.gif")
+print("Also at:   docs/drift_density_animation.gif")
