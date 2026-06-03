@@ -1,0 +1,348 @@
+# ═══════════════════════════════════════════════════════════════
+# P053 — Daily Production Pipeline
+# ═══════════════════════════════════════════════════════════════
+# Runs ONCE per real calendar day (cron: 00:00 UTC).
+# Reads current day number from S3 state file, runs that day's
+# pipeline on EC2 via Airflow, increments the counter on S3.
+#
+# Flow per run:
+#   1. Read s3://p053-mlflow-artifacts/state/pipeline_state.json
+#      → get current_day (starts at 1 after Day 1 training)
+#   2. SSH to EC2 → trigger Airflow DAG p053_daily_yield_pipeline
+#      with day_number and n_rows params
+#   3. Wait for DAG run to succeed (poll every 60s, timeout 4h)
+#   4. Airflow pipeline on EC2:
+#        a. Generate production data (streaming_data_generator)
+#        b. Publish to Kafka
+#        c. Spark ETL → parquet on s3
+#        d. Drift detection → drift report on S3
+#        e. IF drift + rows > threshold → trigger retrain DAG
+#        f. Retrain DAG: GPU retrain → canary eval → promote/rollback
+#   5. Upload drift report + metrics to S3
+#   6. Increment current_day in S3 state file
+#   7. If current_day > 40 → mark simulation COMPLETE
+#
+# Secrets required (GitHub → Settings → Secrets):
+#   EC2_HOST        — public IP of EC2 instance (update when IP changes)
+#   EC2_SSH_KEY     — contents of p053-key.pem
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+# ═══════════════════════════════════════════════════════════════
+
+name: Daily Production Pipeline
+
+on:
+  schedule:
+    # Run every day at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual trigger with optional day override
+    inputs:
+      day_override:
+        description: 'Override day number (leave empty to use S3 state)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run — print plan but do not execute'
+        required: false
+        default: 'false'
+
+env:
+  S3_BUCKET: p053-mlflow-artifacts
+  S3_STATE_KEY: state/pipeline_state.json
+  EC2_USER: ec2-user
+  PROJECT_DIR: /home/ec2-user/053_memory_yield_predictor
+  AIRFLOW_URL: http://localhost:8888
+  AIRFLOW_USER: admin
+  AIRFLOW_PASS: admin
+  AWS_REGION: us-west-2
+
+jobs:
+  daily-pipeline:
+    name: Run Day ${{ github.event.inputs.day_override || 'from-state' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 260  # 4h 20min max — covers full retrain day
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Configure AWS CLI ─────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ── 3. Read pipeline state from S3 ───────────────────────────
+      - name: Read pipeline state from S3
+        id: state
+        run: |
+          # Download state file (create default if not exists)
+          aws s3 cp "s3://$S3_BUCKET/$S3_STATE_KEY" /tmp/pipeline_state.json \
+            --region "$AWS_REGION" 2>/dev/null || echo '{"current_day": 2, "status": "running", "last_run": null, "champion_model": "s3://p053-mlflow-artifacts/models/day1_champion_t4.pt"}' > /tmp/pipeline_state.json
+
+          cat /tmp/pipeline_state.json
+
+          # Parse state
+          CURRENT_DAY=$(python3 -c "import json; d=json.load(open('/tmp/pipeline_state.json')); print(d.get('current_day', 2))")
+          SIM_STATUS=$(python3 -c "import json; d=json.load(open('/tmp/pipeline_state.json')); print(d.get('status', 'running'))")
+          CHAMPION=$(python3 -c "import json; d=json.load(open('/tmp/pipeline_state.json')); print(d.get('champion_model', ''))")
+
+          # Override if manually specified
+          if [ -n "${{ github.event.inputs.day_override }}" ]; then
+            CURRENT_DAY="${{ github.event.inputs.day_override }}"
+            echo "Day overridden to: $CURRENT_DAY"
+          fi
+
+          echo "current_day=$CURRENT_DAY" >> "$GITHUB_OUTPUT"
+          echo "sim_status=$SIM_STATUS" >> "$GITHUB_OUTPUT"
+          echo "champion_model=$CHAMPION" >> "$GITHUB_OUTPUT"
+          echo "Day: $CURRENT_DAY | Status: $SIM_STATUS | Champion: $CHAMPION"
+
+      # ── 4. Check if simulation is already complete ────────────────
+      - name: Check simulation status
+        run: |
+          STATUS="${{ steps.state.outputs.sim_status }}"
+          DAY="${{ steps.state.outputs.current_day }}"
+          if [ "$STATUS" = "complete" ]; then
+            echo "✅ 40-day simulation already complete. Nothing to do."
+            exit 0
+          fi
+          if [ "$DAY" -gt 40 ]; then
+            echo "✅ Day $DAY > 40 — simulation complete."
+            exit 0
+          fi
+          echo "▶ Running Day $DAY / 40"
+
+      # ── 5. Verify EC2 is running, start if stopped ────────────────
+      - name: Ensure EC2 is running
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --region "$AWS_REGION" \
+            --filters "Name=tag:Name,Values=p053-mlflow-server" \
+                      "Name=instance-state-name,Values=running,stopped" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text 2>/dev/null)
+
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
+            echo "ERROR: No EC2 instance found with tag Name=p053-mlflow-server"
+            exit 1
+          fi
+
+          # Start if stopped
+          STATE=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+            --region "$AWS_REGION" \
+            --query 'Reservations[0].Instances[0].State.Name' --output text)
+
+          if [ "$STATE" = "stopped" ]; then
+            echo "EC2 is stopped — starting it..."
+            aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+            echo "Waiting 90s for EC2 to be ready..."
+            sleep 90
+          fi
+
+          # Get current IP (can change on restart)
+          EC2_IP=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+            --region "$AWS_REGION" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "EC2 IP: $EC2_IP"
+          echo "ec2_ip=$EC2_IP" >> "$GITHUB_OUTPUT"
+          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+        id: ec2
+
+      # ── 6. Setup SSH key ──────────────────────────────────────────
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/p053-key.pem
+          chmod 600 ~/.ssh/p053-key.pem
+          ssh-keyscan -H "${{ steps.ec2.outputs.ec2_ip }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # ── 7. Trigger Airflow DAG on EC2 ─────────────────────────────
+      - name: Trigger daily pipeline DAG on EC2
+        id: dag_trigger
+        env:
+          EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
+          DAY: ${{ steps.state.outputs.current_day }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY RUN] Would trigger p053_daily_yield_pipeline for Day $DAY on $EC2_IP"
+            exit 0
+          fi
+
+          echo "Triggering DAG for Day $DAY on EC2 $EC2_IP..."
+          RUN_ID=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@"$EC2_IP" << ENDSSH
+          # Ensure Airflow is running
+          cd "${{ env.PROJECT_DIR }}"
+          COMPOSE_FILE="deploy/aws/docker-compose-bigdata-aws.yml"
+          ENV_FILE="deploy/aws/.env"
+
+          # Quick health check — restart Airflow if down
+          if ! docker exec p053-airflow-webserver airflow version &>/dev/null; then
+            echo "Airflow down — restarting..."
+            docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
+              up -d airflow-webserver airflow-scheduler airflow-init 2>/dev/null
+            sleep 30
+          fi
+
+          # Unpause DAG
+          docker exec p053-airflow-scheduler \
+            airflow dags unpause p053_daily_yield_pipeline 2>/dev/null
+
+          # Trigger with day params
+          RUN_ID=\$(docker exec p053-airflow-scheduler \
+            airflow dags trigger p053_daily_yield_pipeline \
+            --conf '{"day_number": $DAY, "n_rows": 5000000}' \
+            --run-id "day_$(printf '%02d' $DAY)_$(date +%Y%m%d)" \
+            2>/dev/null | grep "run_id" | awk '{print \$NF}' || echo "")
+
+          # Fallback: use API
+          if [ -z "\$RUN_ID" ]; then
+            RESP=\$(curl -s -X POST \
+              "http://localhost:8888/api/v1/dags/p053_daily_yield_pipeline/dagRuns" \
+              -H "Content-Type: application/json" \
+              -u "admin:admin" \
+              -d '{"conf": {"day_number": $DAY, "n_rows": 5000000}, "dag_run_id": "day_$(printf '%02d' $DAY)_$(date +%Y%m%d)"}')
+            RUN_ID=\$(echo "\$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('dag_run_id',''))" 2>/dev/null)
+          fi
+
+          echo "DAG triggered, run_id=\$RUN_ID"
+          echo "\$RUN_ID"
+          ENDSSH
+          )
+          echo "dag_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "DAG run ID: $RUN_ID"
+
+      # ── 8. Poll DAG run until success/failure (timeout 4h) ────────
+      - name: Wait for DAG run to complete
+        env:
+          EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
+          DAY: ${{ steps.state.outputs.current_day }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY RUN] Skipping poll"
+            exit 0
+          fi
+
+          RUN_ID="day_$(printf '%02d' $DAY)_$(date +%Y%m%d)"
+          echo "Polling DAG run: $RUN_ID (max 240 min, poll every 60s)"
+
+          for attempt in $(seq 1 240); do
+            STATE=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
+              ec2-user@"$EC2_IP" \
+              "curl -s -u admin:admin \
+              'http://localhost:8888/api/v1/dags/p053_daily_yield_pipeline/dagRuns/$RUN_ID' \
+              | python3 -c \"import sys,json; print(json.load(sys.stdin).get('state','unknown'))\" 2>/dev/null" \
+              2>/dev/null || echo "unreachable")
+
+            echo "  [$(date '+%H:%M')] attempt $attempt/240 — state: $STATE"
+
+            if [ "$STATE" = "success" ]; then
+              echo "✅ DAG run SUCCESS for Day $DAY"
+              break
+            elif [ "$STATE" = "failed" ]; then
+              echo "❌ DAG run FAILED for Day $DAY"
+              # Collect logs before failing
+              ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@"$EC2_IP" \
+                "docker exec p053-airflow-scheduler airflow tasks logs \
+                p053_daily_yield_pipeline generate_production_data $RUN_ID 2>/dev/null | tail -50" || true
+              exit 1
+            fi
+            sleep 60
+          done
+
+      # ── 9. Collect results from S3 ────────────────────────────────
+      - name: Collect day results from S3
+        env:
+          DAY: ${{ steps.state.outputs.current_day }}
+        run: |
+          DAY_PADDED=$(printf '%02d' $DAY)
+          echo "=== Drift report for Day $DAY ==="
+          aws s3 cp "s3://$S3_BUCKET/drift_reports/day_${DAY_PADDED}_drift.json" \
+            /tmp/drift_report.json --region "$AWS_REGION" 2>/dev/null && \
+            cat /tmp/drift_report.json || echo "No drift report found (day may not have produced drift data)"
+
+          echo ""
+          echo "=== MLflow metrics for Day $DAY ==="
+          aws s3 ls "s3://$S3_BUCKET/daily_metrics/day_${DAY_PADDED}/" \
+            --region "$AWS_REGION" 2>/dev/null || echo "No daily metrics found"
+
+      # ── 10. Increment day counter in S3 ───────────────────────────
+      - name: Advance pipeline state in S3
+        env:
+          DAY: ${{ steps.state.outputs.current_day }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY RUN] Would advance day from $DAY to $((DAY + 1))"
+            exit 0
+          fi
+
+          NEXT_DAY=$((DAY + 1))
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Read current state, update day + last_run
+          python3 << PYEOF
+          import json, os
+
+          with open('/tmp/pipeline_state.json') as f:
+              state = json.load(f)
+
+          state['current_day'] = $NEXT_DAY
+          state['last_run'] = '$NOW'
+          state['last_completed_day'] = $DAY
+
+          if $NEXT_DAY > 40:
+              state['status'] = 'complete'
+              print(f"🎉 Simulation COMPLETE — all 40 days done!")
+          else:
+              state['status'] = 'running'
+              print(f"Advanced: Day $DAY → Day {$NEXT_DAY}")
+
+          with open('/tmp/pipeline_state_new.json', 'w') as f:
+              json.dump(state, f, indent=2)
+          PYEOF
+
+          # Upload updated state to S3
+          aws s3 cp /tmp/pipeline_state_new.json \
+            "s3://$S3_BUCKET/$S3_STATE_KEY" \
+            --region "$AWS_REGION"
+          echo "State updated in S3:"
+          cat /tmp/pipeline_state_new.json
+
+      # ── 11. Stop EC2 if day 40 complete ───────────────────────────
+      - name: Stop EC2 after simulation complete
+        if: steps.state.outputs.current_day == '40'
+        env:
+          INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
+        run: |
+          echo "Day 40 complete — stopping EC2 to save costs..."
+          aws ec2 stop-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+          echo "EC2 stop command sent for $INSTANCE_ID"
+
+          # Also stop RDS
+          aws rds stop-db-instance \
+            --db-instance-identifier p053-mlflow-db \
+            --region "$AWS_REGION" 2>/dev/null || true
+          echo "RDS stop command sent"
+
+      # ── 12. Summary ───────────────────────────────────────────────
+      - name: Pipeline summary
+        if: always()
+        env:
+          DAY: ${{ steps.state.outputs.current_day }}
+        run: |
+          echo "════════════════════════════════════"
+          echo " P053 Daily Pipeline — Day $DAY / 40"
+          echo " Status: ${{ job.status }}"
+          echo " Time: $(date -u)"
+          echo " EC2: ${{ steps.ec2.outputs.ec2_ip }}"
+          echo " Run ID: ${{ steps.dag_trigger.outputs.dag_run_id }}"
+          echo "════════════════════════════════════"
