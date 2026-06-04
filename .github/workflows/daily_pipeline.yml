@@ -210,6 +210,21 @@ jobs:
           echo "Triggering DAG for Day $DAY on EC2 $EC2_IP..."
           RUN_DAY_PREFIX="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)"
           EXPECTED_RUN_ID="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)_gh${GITHUB_RUN_ID}_a${GITHUB_RUN_ATTEMPT}"
+
+          echo "Syncing DAG and src code to EC2 $EC2_IP..."
+          tar -C "$GITHUB_WORKSPACE" -czf - \
+            deploy/airflow/dags \
+            deploy/aws/docker-compose-bigdata-aws.yml \
+            src \
+            | ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
+              ec2-user@"$EC2_IP" \
+              "mkdir -p '${{ env.PROJECT_DIR }}' && tar -xzf - -C '${{ env.PROJECT_DIR }}'" \
+            >/tmp/p053-code-sync.log 2>&1 || {
+              echo "ERROR: Failed to sync workflow-managed code to EC2"
+              tail -n 80 /tmp/p053-code-sync.log
+              exit 1
+            }
+
           RAW_OUTPUT=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
             ec2-user@"$EC2_IP" << ENDSSH
           # Ensure Airflow is running
@@ -218,8 +233,25 @@ jobs:
           ENV_FILE="deploy/aws/.env"
           EXPECTED_RUN_ID="$EXPECTED_RUN_ID"
           RUN_DAY_PREFIX="$RUN_DAY_PREFIX"
+          AIRFLOW_RUNNING=false
 
           # Required services are not guaranteed to auto-start after EC2 reboot.
+          if docker inspect -f '{{.State.Running}}' p053-airflow-web 2>/dev/null | grep -qx true \
+            && docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true; then
+            AIRFLOW_RUNNING=true
+          fi
+
+          if [ "\$AIRFLOW_RUNNING" = "true" ]; then
+            >&2 echo "Restarting Airflow services to load synced DAG/source code..."
+            docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
+              up -d --force-recreate airflow-webserver airflow-scheduler \
+              >/tmp/p053-airflow-restart.log 2>&1 || {
+                >&2 echo "ERROR: Failed to restart Airflow after code sync"
+                >&2 tail -n 80 /tmp/p053-airflow-restart.log
+                exit 1
+              }
+          fi
+
           if ! docker inspect -f '{{.State.Running}}' p053-airflow-web 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
