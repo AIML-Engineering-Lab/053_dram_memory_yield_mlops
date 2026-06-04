@@ -243,7 +243,7 @@ jobs:
           fi
 
           READY=false
-          for attempt in $(seq 1 18); do
+          for attempt in \$(seq 1 18); do
             if docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
               && docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
               && docker inspect -f '{{.State.Running}}' p053-zookeeper 2>/dev/null | grep -qx true \
