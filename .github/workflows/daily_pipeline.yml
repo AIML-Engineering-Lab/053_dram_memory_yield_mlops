@@ -208,7 +208,7 @@ jobs:
           fi
 
           echo "Triggering DAG for Day $DAY on EC2 $EC2_IP..."
-          RUN_ID=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
+          RAW_OUTPUT=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
             ec2-user@"$EC2_IP" << ENDSSH
           # Ensure Airflow is running
           cd "${{ env.PROJECT_DIR }}"
@@ -220,7 +220,7 @@ jobs:
             || ! docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-zookeeper 2>/dev/null | grep -qx true; then
-            echo "Workflow services down — starting Kafka + Airflow stack..."
+            >&2 echo "Workflow services down — starting Kafka + Airflow stack..."
             docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
               up -d zookeeper kafka airflow-postgres airflow-init airflow-webserver airflow-scheduler mlflow 2>/dev/null
             sleep 45
@@ -247,10 +247,18 @@ jobs:
             RUN_ID=\$(echo "\$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('dag_run_id',''))" 2>/dev/null)
           fi
 
-          echo "DAG triggered, run_id=\$RUN_ID"
-          echo "\$RUN_ID"
+          >&2 echo "DAG triggered, run_id=\$RUN_ID"
+          printf '%s\n' "\$RUN_ID"
           ENDSSH
           )
+
+          RUN_ID=$(printf '%s\n' "$RAW_OUTPUT" | grep -Eo "day_$(printf '%02d' $DAY)_[0-9]{8}" | tail -n 1 || true)
+          if [ -z "$RUN_ID" ]; then
+            echo "ERROR: Could not determine DAG run ID from remote output"
+            printf '%s\n' "$RAW_OUTPUT"
+            exit 1
+          fi
+
           echo "dag_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "DAG run ID: $RUN_ID"
 
