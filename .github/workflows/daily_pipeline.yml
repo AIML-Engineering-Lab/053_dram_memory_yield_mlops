@@ -208,6 +208,7 @@ jobs:
           fi
 
           echo "Triggering DAG for Day $DAY on EC2 $EC2_IP..."
+          RUN_DAY_PREFIX="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)"
           EXPECTED_RUN_ID="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)_gh${GITHUB_RUN_ID}_a${GITHUB_RUN_ATTEMPT}"
           RAW_OUTPUT=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
             ec2-user@"$EC2_IP" << ENDSSH
@@ -216,6 +217,7 @@ jobs:
           COMPOSE_FILE="deploy/aws/docker-compose-bigdata-aws.yml"
           ENV_FILE="deploy/aws/.env"
           EXPECTED_RUN_ID="$EXPECTED_RUN_ID"
+          RUN_DAY_PREFIX="$RUN_DAY_PREFIX"
 
           # Required services are not guaranteed to auto-start after EC2 reboot.
           if ! docker inspect -f '{{.State.Running}}' p053-airflow-web 2>/dev/null | grep -qx true \
@@ -286,9 +288,42 @@ jobs:
             exit 1
           fi
 
+          fail_stale_same_day_runs() {
+            STALE_RUN_IDS=\$(docker exec p053-airflow-db psql -U airflow -d airflow -Atqc \
+              "select run_id from dag_run where dag_id = 'p053_daily_yield_pipeline' and state = 'running' and run_id like '\${RUN_DAY_PREFIX}%' and run_id <> '\${EXPECTED_RUN_ID}' order by start_date;")
+
+            if [ -z "\$STALE_RUN_IDS" ]; then
+              return 0
+            fi
+
+            >&2 echo "Found stale same-day DAG runs; failing them before trigger:"
+            printf '%s\n' "\$STALE_RUN_IDS" >&2
+
+            for STALE_RUN_ID in \$STALE_RUN_IDS; do
+              [ -n "\$STALE_RUN_ID" ] || continue
+
+              PIDS=\$(docker top p053-airflow-scheduler -eo pid,cmd \
+                | awk -v run_id="\$STALE_RUN_ID" '\$0 ~ run_id {print \$1}')
+              if [ -n "\$PIDS" ]; then
+                docker exec p053-airflow-scheduler sh -lc "kill -TERM \$PIDS" \
+                  >/tmp/p053-stale-run-kill.log 2>&1 || true
+              fi
+
+              docker exec p053-airflow-db psql -U airflow -d airflow -c \
+                "update task_instance set state = 'failed', end_date = now() where dag_id = 'p053_daily_yield_pipeline' and run_id = '\${STALE_RUN_ID}' and state = 'running'; update dag_run set state = 'failed', end_date = now() where dag_id = 'p053_daily_yield_pipeline' and run_id = '\${STALE_RUN_ID}';" \
+                >/tmp/p053-stale-run-fail.log 2>&1 || {
+                  >&2 echo "ERROR: Failed to mark stale DAG run \$STALE_RUN_ID as failed"
+                  >&2 tail -n 80 /tmp/p053-stale-run-fail.log
+                  exit 1
+                }
+            done
+          }
+
           # Unpause DAG
           docker exec p053-airflow-scheduler \
             airflow dags unpause p053_daily_yield_pipeline 2>/dev/null
+
+          fail_stale_same_day_runs
 
           # Trigger with day params
           docker exec p053-airflow-scheduler \
