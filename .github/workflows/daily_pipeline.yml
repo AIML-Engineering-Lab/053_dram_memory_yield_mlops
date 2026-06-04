@@ -123,7 +123,6 @@ jobs:
           INSTANCE_ID=$(aws ec2 describe-instances \
             --region "$AWS_REGION" \
             --filters "Name=tag:Name,Values=p053-aws-production" \
-                      "Name=instance-state-name,Values=running,stopped" \
             --query 'Reservations[0].Instances[0].InstanceId' \
             --output text 2>/dev/null)
 
@@ -137,11 +136,21 @@ jobs:
             --region "$AWS_REGION" \
             --query 'Reservations[0].Instances[0].State.Name' --output text)
 
+          if [ "$STATE" = "stopping" ]; then
+            echo "EC2 is stopping — waiting for stopped state..."
+            aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+            STATE="stopped"
+          fi
+
           if [ "$STATE" = "stopped" ]; then
             echo "EC2 is stopped — starting it..."
             aws ec2 start-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
-            echo "Waiting 90s for EC2 to be ready..."
-            sleep 90
+            STATE="pending"
+          fi
+
+          if [ "$STATE" = "pending" ]; then
+            echo "Waiting for EC2 status checks to pass..."
+            aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
           fi
 
           # Get current IP (can change on restart)
