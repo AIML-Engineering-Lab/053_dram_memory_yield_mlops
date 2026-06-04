@@ -122,13 +122,13 @@ jobs:
         run: |
           INSTANCE_ID=$(aws ec2 describe-instances \
             --region "$AWS_REGION" \
-            --filters "Name=tag:Name,Values=p053-mlflow-server" \
+            --filters "Name=tag:Name,Values=p053-aws-production" \
                       "Name=instance-state-name,Values=running,stopped" \
             --query 'Reservations[0].Instances[0].InstanceId' \
             --output text 2>/dev/null)
 
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ]; then
-            echo "ERROR: No EC2 instance found with tag Name=p053-mlflow-server"
+            echo "ERROR: No EC2 instance found with tag Name=p053-aws-production"
             exit 1
           fi
 
@@ -317,21 +317,24 @@ jobs:
           echo "State updated in S3:"
           cat /tmp/pipeline_state_new.json
 
-      # ── 11. Stop EC2 if day 40 complete ───────────────────────────
-      - name: Stop EC2 after simulation complete
-        if: steps.state.outputs.current_day == '40'
+      # ── 11. Stop EC2 after every day to avoid idle cost ────────────
+      - name: Stop EC2 after day completes
+        if: always() && steps.ec2.outputs.instance_id != ''
         env:
           INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
+          DAY: ${{ steps.state.outputs.current_day }}
         run: |
-          echo "Day 40 complete — stopping EC2 to save costs..."
-          aws ec2 stop-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION"
+          echo "Day $DAY complete — stopping EC2 to avoid idle charges ($0.526/hr)..."
+          aws ec2 stop-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION" 2>/dev/null || true
           echo "EC2 stop command sent for $INSTANCE_ID"
 
-          # Also stop RDS
-          aws rds stop-db-instance \
-            --db-instance-identifier p053-mlflow-db \
-            --region "$AWS_REGION" 2>/dev/null || true
-          echo "RDS stop command sent"
+          # Also stop RDS if day 40
+          if [ "$DAY" = "40" ]; then
+            aws rds stop-db-instance \
+              --db-instance-identifier p053-mlflow-db \
+              --region "$AWS_REGION" 2>/dev/null || true
+            echo "RDS stop command sent (day 40 — simulation complete)"
+          fi
 
       # ── 12. Build HTML email body ──────────────────────────────────
       - name: Build HTML email report

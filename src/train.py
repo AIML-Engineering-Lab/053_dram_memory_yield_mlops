@@ -532,7 +532,12 @@ def run_training(args):
 
         # ── MLflow: log model artifact ──
         if model_save_path.exists():
-            log_model_artifact(model_save_path)
+            try:
+                log_model_artifact(model_save_path)
+            except PermissionError as exc:
+                # Docker MLflow volume is root-owned; skip artifact logging,
+                # model is already saved locally and will be uploaded to S3.
+                print(f"[WARN] MLflow artifact log skipped (permission): {exc}")
 
         # ─── Save benchmark JSON ───
         benchmark = {
