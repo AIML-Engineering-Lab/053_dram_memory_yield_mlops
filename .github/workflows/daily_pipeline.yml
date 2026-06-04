@@ -242,8 +242,34 @@ jobs:
               }
           fi
 
+          recover_kafka_if_stale_broker_id() {
+            if docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true; then
+              return 0
+            fi
+
+            if ! docker ps -a --format '{{.Names}}' | grep -qx p053-kafka; then
+              return 0
+            fi
+
+            if docker logs --tail 120 p053-kafka 2>&1 | grep -q 'NodeExistsException'; then
+              >&2 echo "Detected stale Kafka broker registration in ZooKeeper — clearing /brokers/ids/1 and recreating Kafka..."
+              docker exec p053-zookeeper zookeeper-shell localhost:2181 delete /brokers/ids/1 \
+                >/tmp/p053-zk-delete.log 2>&1 || true
+              docker rm -f p053-kafka >/tmp/p053-kafka-rm.log 2>&1 || true
+              docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
+                up -d kafka >/tmp/p053-kafka-restart.log 2>&1 || {
+                  >&2 echo "ERROR: Failed to restart Kafka after clearing stale ZooKeeper state"
+                  >&2 tail -n 80 /tmp/p053-kafka-restart.log
+                  exit 1
+                }
+            fi
+          }
+
+          recover_kafka_if_stale_broker_id
+
           READY=false
           for attempt in \$(seq 1 18); do
+            recover_kafka_if_stale_broker_id
             if docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
               && docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
               && docker inspect -f '{{.State.Running}}' p053-zookeeper 2>/dev/null | grep -qx true \
