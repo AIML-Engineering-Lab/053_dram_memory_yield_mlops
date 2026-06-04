@@ -21,6 +21,7 @@ Usage:
 
 import argparse
 import json
+import os
 import signal
 import time
 from pathlib import Path
@@ -45,7 +46,8 @@ LANDING_DIR = DATA_DIR / "landing"
 LANDING_DIR.mkdir(parents=True, exist_ok=True)
 
 TOPIC = "dram-probe-results"
-BOOTSTRAP_SERVERS = "localhost:9092"
+DEFAULT_BOOTSTRAP_SERVERS = "kafka:29092" if Path("/.dockerenv").exists() else "localhost:9092"
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", DEFAULT_BOOTSTRAP_SERVERS)
 GROUP_ID = "yield-etl-consumer-group"
 
 # Graceful shutdown
@@ -78,6 +80,7 @@ def create_consumer(bootstrap_servers: str = BOOTSTRAP_SERVERS,
         return _KafkaConsumer(
             TOPIC,
             bootstrap_servers=[bootstrap_servers],
+            api_version=(2, 8, 0),
             group_id=group_id,
             auto_offset_reset="earliest",
             enable_auto_commit=True,

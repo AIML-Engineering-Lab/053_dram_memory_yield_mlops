@@ -208,22 +208,56 @@ jobs:
           fi
 
           echo "Triggering DAG for Day $DAY on EC2 $EC2_IP..."
+          EXPECTED_RUN_ID="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)"
           RAW_OUTPUT=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
             ec2-user@"$EC2_IP" << ENDSSH
           # Ensure Airflow is running
           cd "${{ env.PROJECT_DIR }}"
           COMPOSE_FILE="deploy/aws/docker-compose-bigdata-aws.yml"
           ENV_FILE="deploy/aws/.env"
+          EXPECTED_RUN_ID="$EXPECTED_RUN_ID"
 
           # Required services are not guaranteed to auto-start after EC2 reboot.
-          if ! docker inspect -f '{{.State.Running}}' p053-airflow-webserver 2>/dev/null | grep -qx true \
+          if ! docker inspect -f '{{.State.Running}}' p053-airflow-web 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
             || ! docker inspect -f '{{.State.Running}}' p053-zookeeper 2>/dev/null | grep -qx true; then
             >&2 echo "Workflow services down — starting Kafka + Airflow stack..."
             docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
-              up -d zookeeper kafka airflow-postgres airflow-init airflow-webserver airflow-scheduler mlflow 2>/dev/null
-            sleep 45
+              up -d zookeeper kafka airflow-postgres airflow-init airflow-webserver airflow-scheduler \
+              >/tmp/p053-compose-start.log 2>&1 || {
+                >&2 echo "ERROR: Failed to start Kafka + Airflow stack"
+                >&2 tail -n 80 /tmp/p053-compose-start.log
+                exit 1
+              }
+          fi
+
+          if ! docker inspect -f '{{.State.Running}}' p053-mlflow-local 2>/dev/null | grep -qx true \
+            && ! docker inspect -f '{{.State.Running}}' p053-mlflow 2>/dev/null | grep -qx true; then
+            >&2 echo "MLflow container not running — starting compose mlflow service..."
+            docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
+              up -d mlflow >/tmp/p053-mlflow-start.log 2>&1 || {
+                >&2 echo "WARNING: Failed to start compose mlflow service"
+                >&2 tail -n 40 /tmp/p053-mlflow-start.log
+              }
+          fi
+
+          READY=false
+          for attempt in $(seq 1 18); do
+            if docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
+              && docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
+              && docker inspect -f '{{.State.Running}}' p053-zookeeper 2>/dev/null | grep -qx true \
+              && docker exec p053-airflow-scheduler airflow version >/dev/null 2>&1; then
+              READY=true
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "\$READY" != "true" ]; then
+            >&2 echo "ERROR: Kafka/Airflow services did not become ready"
+            >&2 docker ps --format 'table {{.Names}}\t{{.Status}}'
+            exit 1
           fi
 
           # Unpause DAG
@@ -231,28 +265,30 @@ jobs:
             airflow dags unpause p053_daily_yield_pipeline 2>/dev/null
 
           # Trigger with day params
-          RUN_ID=\$(docker exec p053-airflow-scheduler \
+          docker exec p053-airflow-scheduler \
             airflow dags trigger p053_daily_yield_pipeline \
             --conf '{"day_number": $DAY, "n_rows": 5000000}' \
-            --run-id "day_$(printf '%02d' $DAY)_$(date +%Y%m%d)" \
-            2>/dev/null | grep "run_id" | awk '{print \$NF}' || echo "")
+            --run-id "\$EXPECTED_RUN_ID" >/tmp/p053-trigger.log 2>&1 || {
+              >&2 echo "ERROR: airflow dags trigger failed"
+              >&2 tail -n 80 /tmp/p053-trigger.log
+              exit 1
+            }
 
-          # Fallback: use API
-          if [ -z "\$RUN_ID" ]; then
-            RESP=\$(curl -s -X POST \
-              "http://localhost:8888/api/v1/dags/p053_daily_yield_pipeline/dagRuns" \
-              -H "Content-Type: application/json" \
-              -u "admin:admin" \
-              -d '{"conf": {"day_number": $DAY, "n_rows": 5000000}, "dag_run_id": "day_$(printf '%02d' $DAY)_$(date +%Y%m%d)"}')
-            RUN_ID=\$(echo "\$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('dag_run_id',''))" 2>/dev/null)
+          RUN_EXISTS=\$(docker exec p053-airflow-scheduler \
+            airflow dags list-runs -d p053_daily_yield_pipeline --output json 2>/dev/null \
+            | python3 -c "import json,sys; run_id='\$EXPECTED_RUN_ID'; runs=json.load(sys.stdin); print(any(r.get('run_id') == run_id for r in runs))" 2>/dev/null || echo false)
+
+          if [ "\$RUN_EXISTS" != "True" ]; then
+            >&2 echo "ERROR: Trigger completed but run_id \$EXPECTED_RUN_ID was not found in Airflow metadata"
+            exit 1
           fi
 
-          >&2 echo "DAG triggered, run_id=\$RUN_ID"
-          printf '%s\n' "\$RUN_ID"
+          >&2 echo "DAG triggered, run_id=\$EXPECTED_RUN_ID"
+          printf '%s\n' "\$EXPECTED_RUN_ID"
           ENDSSH
           )
 
-          RUN_ID=$(printf '%s\n' "$RAW_OUTPUT" | grep -Eo "day_$(printf '%02d' $DAY)_[0-9]{8}" | tail -n 1 || true)
+          RUN_ID=$(printf '%s\n' "$RAW_OUTPUT" | tail -n 1 | tr -d '\r')
           if [ -z "$RUN_ID" ]; then
             echo "ERROR: Could not determine DAG run ID from remote output"
             printf '%s\n' "$RAW_OUTPUT"
@@ -267,6 +303,7 @@ jobs:
         env:
           EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
           DAY: ${{ steps.state.outputs.current_day }}
+          RUN_ID: ${{ steps.dag_trigger.outputs.dag_run_id }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           if [ "$DRY_RUN" = "true" ]; then
@@ -274,15 +311,12 @@ jobs:
             exit 0
           fi
 
-          RUN_ID="day_$(printf '%02d' $DAY)_$(date +%Y%m%d)"
           echo "Polling DAG run: $RUN_ID (max 240 min, poll every 60s)"
 
           for attempt in $(seq 1 240); do
             STATE=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
               ec2-user@"$EC2_IP" \
-              "curl -s -u admin:admin \
-              'http://localhost:8888/api/v1/dags/p053_daily_yield_pipeline/dagRuns/$RUN_ID' \
-              | python3 -c \"import sys,json; print(json.load(sys.stdin).get('state','unknown'))\" 2>/dev/null" \
+              "docker exec p053-airflow-scheduler airflow dags list-runs -d p053_daily_yield_pipeline --output json 2>/dev/null | python3 -c \"import json,sys; run_id='$RUN_ID'; runs=json.load(sys.stdin); print(next((r.get('state','unknown') for r in runs if r.get('run_id') == run_id), 'unknown'))\" 2>/dev/null" \
               2>/dev/null || echo "unreachable")
 
             echo "  [$(date '+%H:%M')] attempt $attempt/240 — state: $STATE"
@@ -301,6 +335,11 @@ jobs:
             fi
             sleep 60
           done
+
+          if [ "$STATE" != "success" ]; then
+            echo "❌ DAG run timed out after 240 attempts for Day $DAY"
+            exit 1
+          fi
 
       # ── 10. Collect results from S3 ───────────────────────────────
       - name: Collect day results from S3
@@ -368,7 +407,7 @@ jobs:
           INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
           DAY: ${{ steps.state.outputs.current_day }}
         run: |
-          echo "Day $DAY complete — stopping EC2 to avoid idle charges ($0.526/hr)..."
+          echo "Day $DAY complete — stopping EC2 to avoid idle charges (\$0.526/hr)..."
           aws ec2 stop-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION" 2>/dev/null || true
           echo "EC2 stop command sent for $INSTANCE_ID"
 

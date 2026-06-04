@@ -63,6 +63,7 @@ publish_kafka = BashOperator(
     task_id="publish_to_kafka",
     bash_command=(
         f"cd {PROJECT_ROOT} && "
+        "KAFKA_BOOTSTRAP_SERVERS=kafka:29092 "
         "python -m src.kafka_producer "
         "--day {{ params.day_number }} "
         "--batch-size 10000"

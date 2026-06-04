@@ -31,6 +31,7 @@ Usage:
 """
 
 import argparse
+import gc
 import json
 import time
 
@@ -62,6 +63,7 @@ except PermissionError:
     pass  # Directory managed externally (e.g., Airflow container bind-mount)
 
 ROWS_PER_DAY = 5_000_000  # 50K wafers × 100 die/wafer
+DEFAULT_CHUNK_ROWS = 250_000
 
 # ═══════════════════════════════════════════════════════════════
 # VARIABLE DAILY VOLUME — Real fabs don't produce fixed volume
@@ -279,40 +281,21 @@ def get_drift_config(day: int) -> dict:
 # DATA GENERATION — Same physics as data_generator.py
 # ═══════════════════════════════════════════════════════════════
 
-def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
-                 output_dir: Path = PRODUCTION_DIR) -> Path:
-    """
-    Generate one day of production DRAM probe data with drift injection.
-
-    Uses the SAME physics engine as data_generator.py:
-    - Same feature distributions, same correlations, same failure mechanisms
-    - Same 10 data quality issues (class imbalance, missing values, etc.)
-    - PLUS: drift injection per the 40-day schedule
-
-    Returns path to the output Parquet file.
-    """
-    cfg = get_drift_config(day)
-    sim_start = datetime.strptime(SIMULATION["start_date"], "%Y-%m-%d")
-    sim_date = sim_start + timedelta(days=day - 1)  # Day 1 = start_date
-    seed = int(sim_date.strftime("%Y%m%d"))  # Deterministic per calendar date
-    rng = np.random.default_rng(seed)
-
-    t0 = time.time()
-    print(f"Day {day:>2} ({sim_date.strftime('%b %d')}) [{cfg['scenario']:>22}] generating {n_rows:>10,} rows...", end=" ", flush=True)
-
+def _build_day_chunk(day: int, n_rows: int, sim_date: datetime,
+                     cfg: dict, rng, chamber_temp_offset: dict) -> tuple[pd.DataFrame, int]:
+    """Generate one chunk of a simulated production day."""
     # ── DIE POSITION ──
     die_x = rng.integers(0, MAX_DIE_X, size=n_rows)
     die_y = rng.integers(0, MAX_DIE_Y, size=n_rows)
     edge_distance = wafer_center_distance(die_x, die_y)
 
     # Day fraction within each "day" (0-1, uniform within day)
-    day_fraction = rng.uniform(0, 1, size=n_rows)
+    rng.uniform(0, 1, size=n_rows)
 
     # ── EQUIPMENT METADATA ──
     tester_id = rng.choice(TESTER_IDS, size=n_rows)
 
     if cfg["new_probe_card"]:
-        # Add a new probe card ID that wasn't in training data
         probe_cards = list(PROBE_CARD_IDS) + ["PC025"]
         prob = np.ones(len(probe_cards)) / len(probe_cards)
         probe_card_id = rng.choice(probe_cards, size=n_rows, p=prob)
@@ -322,14 +305,13 @@ def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
     chamber_id = rng.choice(CHAMBER_IDS, size=n_rows)
 
     if cfg["new_recipe"]:
-        recipes = list(RECIPE_VERSIONS) + ["R3.4.0"]  # New recipe version
+        recipes = list(RECIPE_VERSIONS) + ["R3.4.0"]
         recipe_version = rng.choice(recipes, size=n_rows)
     else:
         recipe_version = rng.choice(RECIPE_VERSIONS, size=n_rows)
 
     # ── TEMPERATURE ── (with drift offset)
     test_temp_c = rng.normal(85.0 + cfg["temp_offset_c"], 3.0, size=n_rows)
-    chamber_temp_offset = {c: rng.normal(0, 1.5) for c in CHAMBER_IDS}
     test_temp_c += np.array([chamber_temp_offset[c] for c in chamber_id])
 
     # ── CELL LEAKAGE ── (log-normal, scaled by drift)
@@ -339,7 +321,7 @@ def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
     coupled_leakage = leakage_sorted[temp_ranks]
     cell_leakage_fa = 0.92 * coupled_leakage + 0.08 * cell_leakage_fa
     cell_leakage_fa = inject_spatial_correlation(cell_leakage_fa, die_x, die_y, rng, 0.25)
-    cell_leakage_fa *= cfg["leakage_scale"]  # Drift: scale leakage up
+    cell_leakage_fa *= cfg["leakage_scale"]
 
     # ── RETENTION TIME ── (with shift)
     base_retention_ms = rng.normal(72.0 + cfg["retention_shift_ms"], 15.0, size=n_rows)
@@ -411,7 +393,6 @@ def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
         flip_mask = rng.random(len(pass_idx)) < 0.001
         is_fail[pass_idx[flip_mask]] = 1
 
-    # ── MISSING VALUES ──
     miss_rates = {
         "cell_leakage_fa": 0.03, "retention_time_ms": 0.04,
         "disturb_margin_mv": 0.06, "bit_error_rate": 0.05,
@@ -419,7 +400,6 @@ def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
         "idd4_active_ma": 0.03, "vt_shift_mv": 0.07,
     }
 
-    # ── BUILD DATAFRAME ──
     df = pd.DataFrame({
         "die_x": die_x.astype(np.int16),
         "die_y": die_y.astype(np.int16),
@@ -455,18 +435,76 @@ def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
         "sim_date": sim_date.strftime("%Y-%m-%d"),
     })
 
-    # Inject missing values
     for col, rate in miss_rates.items():
         mask = rng.random(size=n_rows) < rate
         df.loc[mask, col] = np.nan
 
-    # ── WRITE PARQUET ──
-    out_path = output_dir / f"day_{day:02d}.parquet"
-    table = pa.Table.from_pandas(df, preserve_index=False)
-    pq.write_table(table, out_path, compression="snappy")
-    size_mb = out_path.stat().st_size / 1e6
+    return df, int(is_fail.sum())
 
-    n_fail = int(is_fail.sum())
+def generate_day(day: int, n_rows: int = ROWS_PER_DAY,
+                 output_dir: Path = PRODUCTION_DIR) -> Path:
+    """
+    Generate one day of production DRAM probe data with drift injection.
+
+    Uses the SAME physics engine as data_generator.py:
+    - Same feature distributions, same correlations, same failure mechanisms
+    - Same 10 data quality issues (class imbalance, missing values, etc.)
+    - PLUS: drift injection per the 40-day schedule
+
+    Returns path to the output Parquet file.
+    """
+    cfg = get_drift_config(day)
+    sim_start = datetime.strptime(SIMULATION["start_date"], "%Y-%m-%d")
+    sim_date = sim_start + timedelta(days=day - 1)  # Day 1 = start_date
+    seed = int(sim_date.strftime("%Y%m%d"))  # Deterministic per calendar date
+    rng = np.random.default_rng(seed)
+    chamber_temp_offset = {c: rng.normal(0, 1.5) for c in CHAMBER_IDS}
+
+    t0 = time.time()
+    print(f"Day {day:>2} ({sim_date.strftime('%b %d')}) [{cfg['scenario']:>22}] generating {n_rows:>10,} rows...", end=" ", flush=True)
+    out_path = output_dir / f"day_{day:02d}.parquet"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if out_path.exists():
+        out_path.unlink()
+
+    writer = None
+    success = False
+    n_fail = 0
+    chunk_rows = min(DEFAULT_CHUNK_ROWS, n_rows)
+    rows_written = 0
+
+    try:
+        while rows_written < n_rows:
+            current_rows = min(chunk_rows, n_rows - rows_written)
+            df, chunk_fail = _build_day_chunk(
+                day=day,
+                n_rows=current_rows,
+                sim_date=sim_date,
+                cfg=cfg,
+                rng=rng,
+                chamber_temp_offset=chamber_temp_offset,
+            )
+            table = pa.Table.from_pandas(df, preserve_index=False)
+
+            if writer is None:
+                writer = pq.ParquetWriter(out_path, table.schema, compression="snappy")
+
+            writer.write_table(table)
+            n_fail += chunk_fail
+            rows_written += current_rows
+
+            del df
+            del table
+            gc.collect()
+
+        success = True
+    finally:
+        if writer is not None:
+            writer.close()
+        if not success and out_path.exists():
+            out_path.unlink()
+
+    size_mb = out_path.stat().st_size / 1e6
     elapsed = time.time() - t0
     print(f"{n_fail:>6,} fails ({100*n_fail/n_rows:.2f}%) | "
           f"{size_mb:>6.0f} MB | {elapsed:.1f}s")

@@ -21,7 +21,9 @@ Usage:
 
 import argparse
 import json
+import os
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -40,7 +42,8 @@ from src.config import DATA_DIR
 
 PRODUCTION_DIR = DATA_DIR / "production"
 TOPIC = "dram-probe-results"
-BOOTSTRAP_SERVERS = "localhost:9092"
+DEFAULT_BOOTSTRAP_SERVERS = "kafka:29092" if Path("/.dockerenv").exists() else "localhost:9092"
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", DEFAULT_BOOTSTRAP_SERVERS)
 
 
 def _delivery_report(err, msg):
@@ -63,10 +66,10 @@ def create_producer(bootstrap_servers: str = BOOTSTRAP_SERVERS):
     elif KAFKA_LIB == "kafka-python":
         return _KafkaProducer(
             bootstrap_servers=[bootstrap_servers],
+            api_version=(2, 8, 0),
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             linger_ms=50,
             batch_size=65536,
-            compression_type="snappy",
             acks=1,
         )
     else:
