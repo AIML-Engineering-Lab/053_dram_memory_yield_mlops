@@ -153,7 +153,31 @@ jobs:
           echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
         id: ec2
 
-      # ── 6. Setup SSH key ──────────────────────────────────────────
+      # ── 6. Open SSH for this GitHub runner ───────────────────────
+      - name: Authorize runner SSH ingress
+        id: ssh_ingress
+        env:
+          INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
+        run: |
+          RUNNER_IP=$(curl -fsSL https://checkip.amazonaws.com | tr -d '\n')
+          RUNNER_CIDR="$RUNNER_IP/32"
+          SG_ID=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+            --region "$AWS_REGION" \
+            --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' \
+            --output text)
+
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$SG_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "$RUNNER_CIDR" \
+            --region "$AWS_REGION" 2>/dev/null || true
+
+          echo "runner_cidr=$RUNNER_CIDR" >> "$GITHUB_OUTPUT"
+          echo "security_group_id=$SG_ID" >> "$GITHUB_OUTPUT"
+          echo "Authorized SSH from $RUNNER_CIDR to $SG_ID"
+
+      # ── 7. Setup SSH key ──────────────────────────────────────────
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -161,7 +185,7 @@ jobs:
           chmod 600 ~/.ssh/p053-key.pem
           ssh-keyscan -H "${{ steps.ec2.outputs.ec2_ip }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      # ── 7. Trigger Airflow DAG on EC2 ─────────────────────────────
+      # ── 8. Trigger Airflow DAG on EC2 ─────────────────────────────
       - name: Trigger daily pipeline DAG on EC2
         id: dag_trigger
         env:
@@ -182,12 +206,15 @@ jobs:
           COMPOSE_FILE="deploy/aws/docker-compose-bigdata-aws.yml"
           ENV_FILE="deploy/aws/.env"
 
-          # Quick health check — restart Airflow if down
-          if ! docker exec p053-airflow-webserver airflow version &>/dev/null; then
-            echo "Airflow down — restarting..."
+          # Required services are not guaranteed to auto-start after EC2 reboot.
+          if ! docker inspect -f '{{.State.Running}}' p053-airflow-webserver 2>/dev/null | grep -qx true \
+            || ! docker inspect -f '{{.State.Running}}' p053-airflow-scheduler 2>/dev/null | grep -qx true \
+            || ! docker inspect -f '{{.State.Running}}' p053-kafka 2>/dev/null | grep -qx true \
+            || ! docker inspect -f '{{.State.Running}}' p053-zookeeper 2>/dev/null | grep -qx true; then
+            echo "Workflow services down — starting Kafka + Airflow stack..."
             docker compose -f "\$COMPOSE_FILE" --env-file "\$ENV_FILE" \
-              up -d airflow-webserver airflow-scheduler airflow-init 2>/dev/null
-            sleep 30
+              up -d zookeeper kafka airflow-postgres airflow-init airflow-webserver airflow-scheduler mlflow 2>/dev/null
+            sleep 45
           fi
 
           # Unpause DAG
@@ -218,7 +245,7 @@ jobs:
           echo "dag_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "DAG run ID: $RUN_ID"
 
-      # ── 8. Poll DAG run until success/failure (timeout 4h) ────────
+      # ── 9. Poll DAG run until success/failure (timeout 4h) ────────
       - name: Wait for DAG run to complete
         env:
           EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
@@ -258,7 +285,7 @@ jobs:
             sleep 60
           done
 
-      # ── 9. Collect results from S3 ────────────────────────────────
+      # ── 10. Collect results from S3 ───────────────────────────────
       - name: Collect day results from S3
         env:
           DAY: ${{ steps.state.outputs.current_day }}
@@ -274,7 +301,7 @@ jobs:
           aws s3 ls "s3://$S3_BUCKET/daily_metrics/day_${DAY_PADDED}/" \
             --region "$AWS_REGION" 2>/dev/null || echo "No daily metrics found"
 
-      # ── 10. Increment day counter in S3 ───────────────────────────
+      # ── 11. Increment day counter in S3 ───────────────────────────
       - name: Advance pipeline state in S3
         env:
           DAY: ${{ steps.state.outputs.current_day }}
@@ -317,7 +344,7 @@ jobs:
           echo "State updated in S3:"
           cat /tmp/pipeline_state_new.json
 
-      # ── 11. Stop EC2 after every day to avoid idle cost ────────────
+      # ── 12. Stop EC2 after every day to avoid idle cost ────────────
       - name: Stop EC2 after day completes
         if: always() && steps.ec2.outputs.instance_id != ''
         env:
@@ -336,7 +363,21 @@ jobs:
             echo "RDS stop command sent (day 40 — simulation complete)"
           fi
 
-      # ── 12. Build HTML email body ──────────────────────────────────
+      - name: Revoke runner SSH ingress
+        if: always() && steps.ssh_ingress.outputs.runner_cidr != ''
+        env:
+          SG_ID: ${{ steps.ssh_ingress.outputs.security_group_id }}
+          RUNNER_CIDR: ${{ steps.ssh_ingress.outputs.runner_cidr }}
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id "$SG_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr "$RUNNER_CIDR" \
+            --region "$AWS_REGION" 2>/dev/null || true
+          echo "Revoked SSH access for $RUNNER_CIDR from $SG_ID"
+
+      # ── 13. Build HTML email body ──────────────────────────────────
       - name: Build HTML email report
         if: always()
         env:
