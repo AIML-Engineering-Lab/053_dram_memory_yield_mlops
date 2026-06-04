@@ -253,11 +253,26 @@ def register_model(
     )
 
     if alias:
-        client.set_registered_model_alias(
-            name=model_name,
-            alias=alias,
-            version=model_version.version,
-        )
+        try:
+            client.set_registered_model_alias(
+                name=model_name,
+                alias=alias,
+                version=model_version.version,
+            )
+        except mlflow.exceptions.MlflowException as exc:
+            # Older MLflow servers may not support alias APIs yet.
+            legacy_stage = {
+                "champion": "Production",
+                "challenger": "Staging",
+            }.get(alias)
+            if legacy_stage and "logged-models/search" in str(exc):
+                client.transition_model_version_stage(
+                    name=model_name,
+                    version=model_version.version,
+                    stage=legacy_stage,
+                )
+            else:
+                raise
 
     return model_version
 
