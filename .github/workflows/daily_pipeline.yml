@@ -208,7 +208,7 @@ jobs:
           fi
 
           echo "Triggering DAG for Day $DAY on EC2 $EC2_IP..."
-          EXPECTED_RUN_ID="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)"
+          EXPECTED_RUN_ID="day_$(printf '%02d' "$DAY")_$(date +%Y%m%d)_gh${GITHUB_RUN_ID}_a${GITHUB_RUN_ATTEMPT}"
           RAW_OUTPUT=$(ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
             ec2-user@"$EC2_IP" << ENDSSH
           # Ensure Airflow is running
