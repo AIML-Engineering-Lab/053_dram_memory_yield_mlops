@@ -76,8 +76,8 @@ publish_kafka = BashOperator(
 spark_etl = BashOperator(
     task_id="spark_etl",
     bash_command=(
-        "spark-submit --master local[*] "
-        f"--driver-memory 4g {SRC_DIR}/spark_etl.py "
+        "spark-submit --master local[2] "
+        f"--driver-memory 2g {SRC_DIR}/spark_etl.py "
         "--day {{ params.day_number }}"
     ),
     dag=dag,
@@ -88,8 +88,8 @@ spark_etl = BashOperator(
 drift_detection = BashOperator(
     task_id="drift_detection",
     bash_command=(
-        "spark-submit --master local[*] "
-        f"--driver-memory 4g {SRC_DIR}/spark_drift_detector.py "
+        "spark-submit --master local[2] "
+        f"--driver-memory 2g {SRC_DIR}/spark_drift_detector.py "
         "--ref-days 1-8 "
         "--analysis-day {{ params.day_number }}"
     ),

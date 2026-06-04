@@ -66,8 +66,8 @@ def create_spark(app_name: str = "P053_DRAM_ETL",
     return (builder
         .config("spark.sql.shuffle.partitions", "16")
         .config("spark.sql.parquet.mergeSchema", "true")
-        .config("spark.driver.memory", "4g")
-        .config("spark.executor.memory", "4g")
+        .config("spark.driver.memory", "2g")
+        .config("spark.executor.memory", "2g")
         .config("spark.sql.adaptive.enabled", "true")
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
         .getOrCreate()

@@ -56,7 +56,7 @@ def create_spark(app_name: str = "P053_DriftDetector") -> SparkSession:
     return (SparkSession.builder
         .appName(app_name)
         .config("spark.sql.shuffle.partitions", "8")
-        .config("spark.driver.memory", "4g")
+        .config("spark.driver.memory", "2g")
         .getOrCreate()
     )
 

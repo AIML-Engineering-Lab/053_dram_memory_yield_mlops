@@ -387,11 +387,11 @@ jobs:
               break
             elif [ "$STATE" = "failed" ]; then
               echo "❌ DAG run FAILED for Day $DAY"
-              # Collect logs before failing
+              # Collect task states and the latest task log before failing
               ssh -i ~/.ssh/p053-key.pem -o StrictHostKeyChecking=no \
                 ec2-user@"$EC2_IP" \
-                "docker exec p053-airflow-scheduler airflow tasks logs \
-                p053_daily_yield_pipeline generate_production_data $RUN_ID 2>/dev/null | tail -50" || true
+                "docker exec p053-airflow-scheduler airflow tasks states-for-dag-run p053_daily_yield_pipeline $RUN_ID 2>/dev/null || true; \
+                docker exec p053-airflow-scheduler bash -lc 'find /opt/airflow/logs -path \"*run_id=$RUN_ID*\" -type f | sort | tail -n 1 | xargs -r tail -n 80'" || true
               exit 1
             fi
             sleep 60
