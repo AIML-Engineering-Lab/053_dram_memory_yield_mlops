@@ -441,9 +441,23 @@ jobs:
         run: |
           DAY_PADDED=$(printf '%02d' $DAY)
           echo "=== Drift report for Day $DAY ==="
-          aws s3 cp "s3://$S3_BUCKET/drift_reports/day_${DAY_PADDED}_drift.json" \
-            /tmp/drift_report.json --region "$AWS_REGION" 2>/dev/null && \
-            cat /tmp/drift_report.json || echo "No drift report found (day may not have produced drift data)"
+          DRIFT_FOUND="false"
+          for DRIFT_KEY in \
+            "drift/day_${DAY_PADDED}/drift_day_${DAY_PADDED}.json" \
+            "drift_reports/day_${DAY_PADDED}_drift.json"
+          do
+            if aws s3 cp "s3://$S3_BUCKET/$DRIFT_KEY" \
+              /tmp/drift_report.json --region "$AWS_REGION" 2>/dev/null
+            then
+              DRIFT_FOUND="true"
+              cat /tmp/drift_report.json
+              break
+            fi
+          done
+
+          if [ "$DRIFT_FOUND" != "true" ]; then
+            echo "No drift report found (day may not have produced drift data)"
+          fi
 
           echo ""
           echo "=== MLflow metrics for Day $DAY ==="
@@ -543,7 +557,16 @@ jobs:
           DAYS_LEFT=$((40 - ${DAY:-0}))
 
           # Read drift report if available
-          DRIFT_JSON=$(aws s3 cp "s3://$S3_BUCKET/drift_reports/day_${DAY_PADDED}_drift.json" - 2>/dev/null || echo '{}')
+          DRIFT_JSON='{}'
+          for DRIFT_KEY in \
+            "drift/day_${DAY_PADDED}/drift_day_${DAY_PADDED}.json" \
+            "drift_reports/day_${DAY_PADDED}_drift.json"
+          do
+            DRIFT_JSON_CANDIDATE=$(aws s3 cp "s3://$S3_BUCKET/$DRIFT_KEY" - 2>/dev/null) && {
+              DRIFT_JSON="$DRIFT_JSON_CANDIDATE"
+              break
+            }
+          done
           DRIFT_DETECTED=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('should_retrain', False))" 2>/dev/null || echo "false")
           PSI_MAX=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d.get('max_psi', 0), 4))" 2>/dev/null || echo "N/A")
           CRITICAL_FEATS=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('features_critical', 0))" 2>/dev/null || echo "0")
