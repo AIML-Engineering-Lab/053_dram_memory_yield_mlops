@@ -29,6 +29,7 @@ from pathlib import Path
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURATION — Must match config.py exactly
@@ -287,6 +288,9 @@ def compute_drift_stats(df: DataFrame, day: int,
     """
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    def to_float(value):
+        return float(value) if value is not None else None
+
     stats_rows = []
     for col in NUMERIC_FEATURES:
         col_stats = df.select(
@@ -300,10 +304,35 @@ def compute_drift_stats(df: DataFrame, day: int,
             F.min(col).alias("min_val"),
             F.max(col).alias("max_val"),
         ).collect()[0]
-        stats_rows.append(col_stats.asDict())
+        stats_rows.append(
+            {
+                "day_number": int(day),
+                "feature": col,
+                "mean": to_float(col_stats["mean"]),
+                "stddev": to_float(col_stats["stddev"]),
+                "p25": to_float(col_stats["p25"]),
+                "p50": to_float(col_stats["p50"]),
+                "p75": to_float(col_stats["p75"]),
+                "min_val": to_float(col_stats["min_val"]),
+                "max_val": to_float(col_stats["max_val"]),
+            }
+        )
 
     spark = df.sparkSession
-    stats_df = spark.createDataFrame(stats_rows)
+    stats_schema = T.StructType(
+        [
+            T.StructField("day_number", T.IntegerType(), False),
+            T.StructField("feature", T.StringType(), False),
+            T.StructField("mean", T.DoubleType(), True),
+            T.StructField("stddev", T.DoubleType(), True),
+            T.StructField("p25", T.DoubleType(), True),
+            T.StructField("p50", T.DoubleType(), True),
+            T.StructField("p75", T.DoubleType(), True),
+            T.StructField("min_val", T.DoubleType(), True),
+            T.StructField("max_val", T.DoubleType(), True),
+        ]
+    )
+    stats_df = spark.createDataFrame(stats_rows, schema=stats_schema)
 
     out_path = str(Path(output_dir) / f"day_{day:02d}_stats.parquet")
     stats_df.coalesce(1).write.mode("overwrite").parquet(out_path)
