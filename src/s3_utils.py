@@ -23,9 +23,12 @@ Interview talking point:
     S3 so the tracking server is fully stateless."
 """
 
+import json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -186,5 +189,26 @@ def upload_simulation_artifacts(day: int, data_dir: str,
             str(canary_path),
             f"canary/day_{day:02d}/canary_result.json",
         )
+
+    summary = {
+        "day": day,
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "artifact_count": len(uploaded),
+        "artifacts": uploaded,
+        "has_retrain": "retrain_result" in uploaded,
+        "has_canary": "canary_result" in uploaded,
+    }
+
+    with NamedTemporaryFile("w", suffix=f"_day_{day:02d}_summary.json", delete=False) as tmp:
+        json.dump(summary, tmp, indent=2)
+        summary_path = Path(tmp.name)
+
+    try:
+        uploaded["daily_summary"] = s3.upload_file(
+            str(summary_path),
+            f"daily_metrics/day_{day:02d}/day_{day:02d}_summary.json",
+        )
+    finally:
+        summary_path.unlink(missing_ok=True)
 
     return uploaded

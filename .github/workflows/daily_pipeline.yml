@@ -56,6 +56,7 @@ env:
   AIRFLOW_USER: admin
   AIRFLOW_PASS: admin
   AWS_REGION: us-west-2
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   daily-pipeline:
@@ -440,6 +441,16 @@ jobs:
           DAY: ${{ steps.state.outputs.current_day }}
         run: |
           DAY_PADDED=$(printf '%02d' $DAY)
+          DRIFT_KEY_FOUND=""
+
+          artifact_exists() {
+            local s3_key="$1"
+            aws s3api head-object \
+              --bucket "$S3_BUCKET" \
+              --key "$s3_key" \
+              --region "$AWS_REGION" >/dev/null 2>&1
+          }
+
           echo "=== Drift report for Day $DAY ==="
           DRIFT_FOUND="false"
           for DRIFT_KEY in \
@@ -450,6 +461,7 @@ jobs:
               /tmp/drift_report.json --region "$AWS_REGION" 2>/dev/null
             then
               DRIFT_FOUND="true"
+              DRIFT_KEY_FOUND="$DRIFT_KEY"
               cat /tmp/drift_report.json
               break
             fi
@@ -460,9 +472,32 @@ jobs:
           fi
 
           echo ""
-          echo "=== MLflow metrics for Day $DAY ==="
-          aws s3 ls "s3://$S3_BUCKET/daily_metrics/day_${DAY_PADDED}/" \
-            --region "$AWS_REGION" 2>/dev/null || echo "No daily metrics found"
+          echo "=== Daily artifacts for Day $DAY ==="
+          FOUND_ANY_ARTIFACT="false"
+
+          if artifact_exists "data/production/day_${DAY_PADDED}/day_${DAY_PADDED}.parquet"; then
+            echo "Production parquet: s3://$S3_BUCKET/data/production/day_${DAY_PADDED}/day_${DAY_PADDED}.parquet"
+            FOUND_ANY_ARTIFACT="true"
+          fi
+
+          if [ -n "$DRIFT_KEY_FOUND" ]; then
+            echo "Drift report: s3://$S3_BUCKET/$DRIFT_KEY_FOUND"
+            FOUND_ANY_ARTIFACT="true"
+          fi
+
+          if artifact_exists "retrain/day_${DAY_PADDED}/retrain_result.json"; then
+            echo "Retrain result: s3://$S3_BUCKET/retrain/day_${DAY_PADDED}/retrain_result.json"
+            FOUND_ANY_ARTIFACT="true"
+          fi
+
+          if artifact_exists "canary/day_${DAY_PADDED}/canary_result.json"; then
+            echo "Canary result: s3://$S3_BUCKET/canary/day_${DAY_PADDED}/canary_result.json"
+            FOUND_ANY_ARTIFACT="true"
+          fi
+
+          if [ "$FOUND_ANY_ARTIFACT" != "true" ]; then
+            echo "No day artifacts found in S3"
+          fi
 
       # ── 11. Increment day counter in S3 ───────────────────────────
       - name: Advance pipeline state in S3
@@ -555,18 +590,49 @@ jobs:
           NOW=$(date -u +"%B %d, %Y %H:%M UTC")
           NEXT_DAY=$((${DAY:-0} + 1))
           DAYS_LEFT=$((40 - ${DAY:-0}))
+          ARTIFACTS_HTML=""
+
+          artifact_exists() {
+            local s3_key="$1"
+            aws s3api head-object \
+              --bucket "$S3_BUCKET" \
+              --key "$s3_key" \
+              --region "$AWS_REGION" >/dev/null 2>&1
+          }
+
+          append_artifact_html() {
+            local label="$1"
+            local s3_key="$2"
+            if artifact_exists "$s3_key"; then
+              ARTIFACTS_HTML="${ARTIFACTS_HTML}<div style=\"font-size:13px;color:#c9d1d9;margin-top:8px\"><span style=\"color:#8b949e\">${label}:</span> <span style=\"color:#58a6ff;word-break:break-all;font-family:monospace\">s3://$S3_BUCKET/$s3_key</span></div>"
+            fi
+          }
 
           # Read drift report if available
           DRIFT_JSON='{}'
+          DRIFT_KEY_FOUND=''
           for DRIFT_KEY in \
             "drift/day_${DAY_PADDED}/drift_day_${DAY_PADDED}.json" \
             "drift_reports/day_${DAY_PADDED}_drift.json"
           do
             DRIFT_JSON_CANDIDATE=$(aws s3 cp "s3://$S3_BUCKET/$DRIFT_KEY" - 2>/dev/null) && {
               DRIFT_JSON="$DRIFT_JSON_CANDIDATE"
+              DRIFT_KEY_FOUND="$DRIFT_KEY"
               break
             }
           done
+
+          append_artifact_html "Production parquet" "data/production/day_${DAY_PADDED}/day_${DAY_PADDED}.parquet"
+          if [ -n "$DRIFT_KEY_FOUND" ]; then
+            append_artifact_html "Drift report" "$DRIFT_KEY_FOUND"
+          fi
+          append_artifact_html "Retrain result" "retrain/day_${DAY_PADDED}/retrain_result.json"
+          append_artifact_html "Canary result" "canary/day_${DAY_PADDED}/canary_result.json"
+
+          if [ -z "$ARTIFACTS_HTML" ]; then
+            ARTIFACTS_HTML='<div style="font-size:13px;color:#8b949e;margin-top:8px">No day artifacts found in S3 yet.</div>'
+          fi
+
           DRIFT_DETECTED=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('should_retrain', False))" 2>/dev/null || echo "false")
           PSI_MAX=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d.get('max_psi', 0), 4))" 2>/dev/null || echo "N/A")
           CRITICAL_FEATS=$(echo "$DRIFT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('features_critical', 0))" 2>/dev/null || echo "0")
@@ -612,6 +678,7 @@ jobs:
           champion = "$CHAMPION"
           now = "$NOW"
           ec2_ip = "$EC2_IP"
+          artifacts_html = """$ARTIFACTS_HTML"""
           run_url = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           pct = int(day) * 100 // 40
@@ -701,6 +768,14 @@ jobs:
               <div style="background:#21262d;border:1px solid #30363d;border-radius:8px;padding:14px 18px">
                 <div style="font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Champion Model</div>
                 <div style="font-size:13px;color:#58a6ff;word-break:break-all;font-family:monospace">{champion or "s3://p053-mlflow-artifacts/models/day1_champion_t4.pt"}</div>
+              </div>
+            </td></tr>
+
+            <!-- Day Artifacts -->
+            <tr><td style="padding:16px 32px 0">
+              <div style="background:#21262d;border:1px solid #30363d;border-radius:8px;padding:14px 18px">
+                <div style="font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Day Artifacts</div>
+                {artifacts_html}
               </div>
             </td></tr>
 
