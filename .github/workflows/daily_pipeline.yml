@@ -121,6 +121,25 @@ jobs:
       # ── 5. Verify EC2 is running, start if stopped ────────────────
       - name: Ensure EC2 is running
         run: |
+          # ── Start RDS first (takes ~3-5 min; EC2 wait overlaps it) ──
+          RDS_STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier p053-mlflow-db \
+            --region "$AWS_REGION" \
+            --query 'DBInstances[0].DBInstanceStatus' \
+            --output text 2>/dev/null || echo "not-found")
+          echo "RDS current status: $RDS_STATUS"
+          if [ "$RDS_STATUS" = "stopped" ]; then
+            echo "Starting RDS p053-mlflow-db..."
+            aws rds start-db-instance \
+              --db-instance-identifier p053-mlflow-db \
+              --region "$AWS_REGION" 2>/dev/null || true
+            echo "RDS start command sent (will become available during EC2 wait)"
+          elif [ "$RDS_STATUS" = "available" ]; then
+            echo "RDS already available — no action needed"
+          else
+            echo "RDS status '$RDS_STATUS' — skipping start (may be starting/modifying)"
+          fi
+
           INSTANCE_ID=$(aws ec2 describe-instances \
             --region "$AWS_REGION" \
             --filters "Name=tag:Name,Values=p053-aws-production" \
@@ -553,13 +572,12 @@ jobs:
           aws ec2 stop-instances --instance-ids "$INSTANCE_ID" --region "$AWS_REGION" 2>/dev/null || true
           echo "EC2 stop command sent for $INSTANCE_ID"
 
-          # Also stop RDS if day 40
-          if [ "$DAY" = "40" ]; then
-            aws rds stop-db-instance \
-              --db-instance-identifier p053-mlflow-db \
-              --region "$AWS_REGION" 2>/dev/null || true
-            echo "RDS stop command sent (day 40 — production run complete)"
-          fi
+          # Stop RDS after every day to avoid idle charges (~$0.024/hr)
+          echo "Stopping RDS p053-mlflow-db to avoid idle charges..."
+          aws rds stop-db-instance \
+            --db-instance-identifier p053-mlflow-db \
+            --region "$AWS_REGION" 2>/dev/null || true
+          echo "RDS stop command sent (Day $DAY complete)"
 
       - name: Revoke runner SSH ingress
         if: always() && steps.ssh_ingress.outputs.runner_cidr != ''
