@@ -593,170 +593,171 @@ jobs:
             --region "$AWS_REGION" 2>/dev/null || true
           echo "Revoked SSH access for $RUNNER_CIDR from $SG_ID"
 
-          # ── 13. Collect workflow timings and AWS cost snapshot ───────
-          - name: Collect workflow timings and AWS cost snapshot
-          if: always()
-          env:
-            GH_TOKEN: ${{ github.token }}
-            GITHUB_API_URL: ${{ github.api_url }}
-            GITHUB_REPOSITORY: ${{ github.repository }}
-            GITHUB_RUN_ID: ${{ github.run_id }}
-          run: |
-            python3 <<'PYEOF'
-            import json
-            import os
-            import urllib.request
-            from datetime import datetime
-            from pathlib import Path
 
-            def parse_iso(value: str) -> datetime:
-              return datetime.fromisoformat(value.replace("Z", "+00:00"))
+      # ── 13. Collect workflow timings and AWS cost snapshot ───────
+      - name: Collect workflow timings and AWS cost snapshot
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 <<'PYEOF'
+          import json
+          import os
+          import urllib.request
+          from datetime import datetime
+          from pathlib import Path
 
-            def fmt_duration(seconds: float) -> str:
-              total = max(int(round(seconds)), 0)
-              hours, rem = divmod(total, 3600)
-              minutes, secs = divmod(rem, 60)
-              if hours:
-                return f"{hours}h {minutes}m {secs}s"
-              if minutes:
-                return f"{minutes}m {secs}s"
-              return f"{secs}s"
+          def parse_iso(value: str) -> datetime:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
-            timings_html = '<div style="font-size:13px;color:#8b949e">Workflow step timing unavailable for this run.</div>'
-            overall_runtime = "N/A"
-            completed_steps = "0"
+          def fmt_duration(seconds: float) -> str:
+            total = max(int(round(seconds)), 0)
+            hours, rem = divmod(total, 3600)
+            minutes, secs = divmod(rem, 60)
+            if hours:
+              return f"{hours}h {minutes}m {secs}s"
+            if minutes:
+              return f"{minutes}m {secs}s"
+            return f"{secs}s"
 
-            token = os.environ.get("GH_TOKEN", "")
-            api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com")
-            repo = os.environ["GITHUB_REPOSITORY"]
-            run_id = os.environ["GITHUB_RUN_ID"]
+          timings_html = '<div style="font-size:13px;color:#8b949e">Workflow step timing unavailable for this run.</div>'
+          overall_runtime = "N/A"
+          completed_steps = "0"
 
-            try:
-              request = urllib.request.Request(
-                f"{api_url}/repos/{repo}/actions/runs/{run_id}/jobs?per_page=100",
-                headers={
-                  "Authorization": f"Bearer {token}",
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                },
+          token = os.environ.get("GH_TOKEN", "")
+          api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+
+          try:
+            request = urllib.request.Request(
+              f"{api_url}/repos/{repo}/actions/runs/{run_id}/jobs?per_page=100",
+              headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+              },
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+              payload = json.load(response)
+
+            jobs = payload.get("jobs", [])
+            job = jobs[0] if jobs else {}
+            rows = []
+            earliest = None
+            latest = None
+            step_count = 0
+
+            for step in job.get("steps", []):
+              if step.get("status") != "completed":
+                continue
+              started_at = step.get("started_at")
+              completed_at = step.get("completed_at")
+              if not started_at or not completed_at:
+                continue
+              start_dt = parse_iso(started_at)
+              end_dt = parse_iso(completed_at)
+              duration = fmt_duration((end_dt - start_dt).total_seconds())
+              step_name = step.get("name", "Step")
+              step_count += 1
+              earliest = start_dt if earliest is None or start_dt < earliest else earliest
+              latest = end_dt if latest is None or end_dt > latest else latest
+              rows.append(
+                f'<tr>'
+                f'<td style="padding:6px 0;color:#c9d1d9">{step_name}</td>'
+                f'<td style="padding:6px 0;color:#58a6ff;text-align:right;font-family:monospace">{duration}</td>'
+                f'</tr>'
               )
-              with urllib.request.urlopen(request, timeout=20) as response:
-                payload = json.load(response)
 
-              jobs = payload.get("jobs", [])
-              job = jobs[0] if jobs else {}
-              rows = []
-              earliest = None
-              latest = None
-              step_count = 0
-
-              for step in job.get("steps", []):
-                if step.get("status") != "completed":
-                  continue
-                started_at = step.get("started_at")
-                completed_at = step.get("completed_at")
-                if not started_at or not completed_at:
-                  continue
-                start_dt = parse_iso(started_at)
-                end_dt = parse_iso(completed_at)
-                duration = fmt_duration((end_dt - start_dt).total_seconds())
-                step_name = step.get("name", "Step")
-                step_count += 1
-                earliest = start_dt if earliest is None or start_dt < earliest else earliest
-                latest = end_dt if latest is None or end_dt > latest else latest
-                rows.append(
-                  f'<tr>'
-                  f'<td style="padding:6px 0;color:#c9d1d9">{step_name}</td>'
-                  f'<td style="padding:6px 0;color:#58a6ff;text-align:right;font-family:monospace">{duration}</td>'
-                  f'</tr>'
-                )
-
-              if rows:
-                timings_html = (
-                  '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px">'
-                  + "".join(rows)
-                  + "</table>"
-                )
-              if earliest and latest:
-                overall_runtime = fmt_duration((latest - earliest).total_seconds())
-              completed_steps = str(step_count)
-            except Exception as exc:
+            if rows:
               timings_html = (
-                f'<div style="font-size:13px;color:#8b949e">'
-                f'Workflow step timing unavailable: {type(exc).__name__}'
-                f'</div>'
-              )
-
-            Path("/tmp/workflow_timings.html").write_text(timings_html)
-            Path("/tmp/overall_runtime.txt").write_text(overall_runtime)
-            Path("/tmp/completed_steps.txt").write_text(completed_steps)
-            PYEOF
-
-            START=$(date -u +"%Y-%m-01")
-            END=$(date -u -d tomorrow +"%Y-%m-%d")
-            COST_PERIOD=$(date -u +"%B %Y")
-
-            if aws ce get-cost-and-usage \
-            --region us-east-1 \
-            --time-period Start="$START",End="$END" \
-            --granularity MONTHLY \
-            --metrics UnblendedCost \
-            --group-by Type=DIMENSION,Key=SERVICE \
-            --output json > /tmp/aws_cost_snapshot.json 2>/tmp/aws_cost_snapshot.err
-            then
-            python3 <<'PYEOF'
-            import json
-            from pathlib import Path
-
-            def money(value: float) -> str:
-              return f"${value:,.2f}"
-
-            snapshot = json.loads(Path("/tmp/aws_cost_snapshot.json").read_text())
-            results = snapshot.get("ResultsByTime", [])
-            groups = []
-            if results:
-              for group in results[0].get("Groups", []):
-                service = group.get("Keys", ["Unknown Service"])[0]
-                amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
-                if amount > 0:
-                  groups.append((service, amount))
-
-            groups.sort(key=lambda item: item[1], reverse=True)
-            total = sum(amount for _, amount in groups)
-
-            if groups:
-              rows = []
-              for service, amount in groups[:6]:
-                rows.append(
-                  f'<tr>'
-                  f'<td style="padding:6px 0;color:#c9d1d9">{service}</td>'
-                  f'<td style="padding:6px 0;color:#fbbf24;text-align:right;font-family:monospace">{money(amount)}</td>'
-                  f'</tr>'
-                )
-              costs_html = (
-                '<div style="font-size:12px;color:#8b949e;margin-bottom:8px">'
-                'Current AWS month-to-date spend from Cost Explorer grouped by service.'
-                '</div>'
                 '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px">'
                 + "".join(rows)
                 + "</table>"
               )
-              total_text = money(total)
-            else:
-              costs_html = '<div style="font-size:13px;color:#8b949e">No month-to-date AWS cost data returned yet.</div>'
-              total_text = "$0.00"
+            if earliest and latest:
+              overall_runtime = fmt_duration((latest - earliest).total_seconds())
+            completed_steps = str(step_count)
+          except Exception as exc:
+            timings_html = (
+              f'<div style="font-size:13px;color:#8b949e">'
+              f'Workflow step timing unavailable: {type(exc).__name__}'
+              f'</div>'
+            )
 
-            Path("/tmp/aws_costs.html").write_text(costs_html)
-            Path("/tmp/total_mtd_cost.txt").write_text(total_text)
-            PYEOF
-            else
-              printf '%s\n' '<div style="font-size:13px;color:#8b949e">AWS Cost Explorer snapshot unavailable for this run.</div>' > /tmp/aws_costs.html
-            echo "Unavailable" > /tmp/total_mtd_cost.txt
-            fi
+          Path("/tmp/workflow_timings.html").write_text(timings_html)
+          Path("/tmp/overall_runtime.txt").write_text(overall_runtime)
+          Path("/tmp/completed_steps.txt").write_text(completed_steps)
+          PYEOF
 
-            echo "$COST_PERIOD" > /tmp/cost_period.txt
+          START=$(date -u +"%Y-%m-01")
+          END=$(date -u -d tomorrow +"%Y-%m-%d")
+          COST_PERIOD=$(date -u +"%B %Y")
 
-          # ── 14. Build HTML email body ─────────────────────────────────
+          if aws ce get-cost-and-usage \
+          --region us-east-1 \
+          --time-period Start="$START",End="$END" \
+          --granularity MONTHLY \
+          --metrics UnblendedCost \
+          --group-by Type=DIMENSION,Key=SERVICE \
+          --output json > /tmp/aws_cost_snapshot.json 2>/tmp/aws_cost_snapshot.err
+          then
+          python3 <<'PYEOF'
+          import json
+          from pathlib import Path
+
+          def money(value: float) -> str:
+            return f"${value:,.2f}"
+
+          snapshot = json.loads(Path("/tmp/aws_cost_snapshot.json").read_text())
+          results = snapshot.get("ResultsByTime", [])
+          groups = []
+          if results:
+            for group in results[0].get("Groups", []):
+              service = group.get("Keys", ["Unknown Service"])[0]
+              amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
+              if amount > 0:
+                groups.append((service, amount))
+
+          groups.sort(key=lambda item: item[1], reverse=True)
+          total = sum(amount for _, amount in groups)
+
+          if groups:
+            rows = []
+            for service, amount in groups[:6]:
+              rows.append(
+                f'<tr>'
+                f'<td style="padding:6px 0;color:#c9d1d9">{service}</td>'
+                f'<td style="padding:6px 0;color:#fbbf24;text-align:right;font-family:monospace">{money(amount)}</td>'
+                f'</tr>'
+              )
+            costs_html = (
+              '<div style="font-size:12px;color:#8b949e;margin-bottom:8px">'
+              'Current AWS month-to-date spend from Cost Explorer grouped by service.'
+              '</div>'
+              '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px">'
+              + "".join(rows)
+              + "</table>"
+            )
+            total_text = money(total)
+          else:
+            costs_html = '<div style="font-size:13px;color:#8b949e">No month-to-date AWS cost data returned yet.</div>'
+            total_text = "$0.00"
+
+          Path("/tmp/aws_costs.html").write_text(costs_html)
+          Path("/tmp/total_mtd_cost.txt").write_text(total_text)
+          PYEOF
+          else
+            printf '%s\n' '<div style="font-size:13px;color:#8b949e">AWS Cost Explorer snapshot unavailable for this run.</div>' > /tmp/aws_costs.html
+          echo "Unavailable" > /tmp/total_mtd_cost.txt
+          fi
+
+          echo "$COST_PERIOD" > /tmp/cost_period.txt
+
+        # ── 14. Build HTML email body ─────────────────────────────────
       - name: Build HTML email report
         if: always()
         env:
