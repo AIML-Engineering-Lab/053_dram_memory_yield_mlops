@@ -447,10 +447,73 @@ rollback_model = PythonOperator(
 )
 
 
-# ─── TASK 6: Log completion ─────────────────────────────────
+# ─── TASK 6: Log completion + upload results to S3 + update champion ──────
+def _log_retrain_complete(**context):
+    """Upload retrain/canary results to S3 and update pipeline_state.json champion."""
+    import json
+    import boto3
+    from pathlib import Path
+
+    day = int(context["params"]["day_number"])
+    day_pad = f"{day:02d}"
+    bucket = "p053-mlflow-artifacts"
+    region = "us-west-2"
+
+    try:
+        s3 = boto3.client("s3", region_name=region)
+
+        # Upload retrain_result.json
+        retrain_path = Path(DATA_DIR) / "retrain_results" / f"retrain_day_{day_pad}.json"
+        if retrain_path.exists():
+            s3.upload_file(
+                str(retrain_path),
+                bucket,
+                f"retrain/day_{day_pad}/retrain_result.json",
+            )
+            print(f"[S3] Uploaded retrain_result.json for day {day}")
+
+        # Upload canary_result.json
+        canary_path = Path(DATA_DIR) / "canary_results" / f"canary_day_{day_pad}.json"
+        if canary_path.exists():
+            s3.upload_file(
+                str(canary_path),
+                bucket,
+                f"canary/day_{day_pad}/canary_result.json",
+            )
+            print(f"[S3] Uploaded canary_result.json for day {day}")
+
+            # If canary passed, update pipeline_state.json champion
+            with open(canary_path) as f:
+                canary = json.load(f)
+            if canary.get("canary_passed"):
+                state_obj = s3.get_object(Bucket=bucket, Key="state/pipeline_state.json")
+                state = json.loads(state_obj["Body"].read())
+                new_champion = f"s3://{bucket}/models/retrain_day{day_pad}/hybrid_best_retrain_day{day_pad}.pt"
+                # Use whichever model file was uploaded
+                model_files = list(Path(f"{PROJECT_ROOT}/src/artifacts").glob("hybrid_best*.pt"))
+                if model_files:
+                    new_champion = f"s3://{bucket}/models/retrain_day{day_pad}/{model_files[0].name}"
+                state["champion_model"] = new_champion
+                state["last_retrain_day"] = day
+                import io
+                s3.put_object(
+                    Bucket=bucket,
+                    Key="state/pipeline_state.json",
+                    Body=json.dumps(state, indent=2).encode(),
+                    ContentType="application/json",
+                )
+                print(f"[CHAMPION] Day {day}: pipeline_state.json updated → {new_champion}")
+            else:
+                print(f"[ROLLBACK] Day {day}: canary failed — champion model unchanged")
+    except Exception as e:
+        print(f"[S3] Retrain completion upload failed (non-fatal): {e}")
+
+    print(f"[DONE] Retrain pipeline day {day} complete")
+
+
 log_complete = PythonOperator(
     task_id="log_retrain_result",
-    python_callable=lambda **ctx: print(f"[DONE] Retrain pipeline day {ctx['params']['day_number']} complete"),
+    python_callable=_log_retrain_complete,
     trigger_rule="none_failed_min_one_success",
     dag=dag,
 )

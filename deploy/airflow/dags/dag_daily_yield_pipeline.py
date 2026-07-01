@@ -146,6 +146,8 @@ trigger_retrain = TriggerDagRunOperator(
     task_id="trigger_retrain",
     trigger_dag_id="p053_retrain_pipeline",
     conf={"day_number": "{{ params.day_number }}"},
+    wait_for_completion=True,   # Block daily DAG until retrain DAG finishes
+    poke_interval=60,           # Poll every 60s (retrain takes 30-120 min)
     dag=dag,
 )
 
