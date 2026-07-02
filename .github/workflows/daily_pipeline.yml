@@ -62,7 +62,7 @@ jobs:
   daily-pipeline:
     name: Run Day ${{ github.event.inputs.day_override || 'from-state' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 260  # 4h 20min max — covers full retrain day
+    timeout-minutes: 480  # 8h max — retrain days need ~3.5h (pipeline ~90min + T4 GPU train ~120min + buffer)
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────
