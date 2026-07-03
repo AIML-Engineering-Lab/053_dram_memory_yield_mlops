@@ -73,13 +73,22 @@ publish_kafka = BashOperator(
 
 
 # ─── TASK 3: Spark ETL ──────────────────────────────────────
+# local[1]+1g: reduce memory vs Docker services on g4dn.xlarge.
+# retries=2: survive zombie kills (OOM at OS level); execution_timeout gives
+# Airflow a clean kill handle so tasks never hang indefinitely.
 spark_etl = BashOperator(
     task_id="spark_etl",
     bash_command=(
-        "spark-submit --master local[2] "
-        f"--driver-memory 2g {SRC_DIR}/spark_etl.py "
+        "spark-submit --master local[1] "
+        "--driver-memory 1g "
+        "--conf spark.driver.maxResultSize=256m "
+        "--conf spark.sql.shuffle.partitions=4 "
+        f"{SRC_DIR}/spark_etl.py "
         "--day {{ params.day_number }}"
     ),
+    retries=2,
+    retry_delay=timedelta(minutes=3),
+    execution_timeout=timedelta(minutes=45),
     dag=dag,
 )
 
@@ -88,11 +97,17 @@ spark_etl = BashOperator(
 drift_detection = BashOperator(
     task_id="drift_detection",
     bash_command=(
-        "spark-submit --master local[2] "
-        f"--driver-memory 2g {SRC_DIR}/spark_drift_detector.py "
+        "spark-submit --master local[1] "
+        "--driver-memory 1g "
+        "--conf spark.driver.maxResultSize=256m "
+        "--conf spark.sql.shuffle.partitions=4 "
+        f"{SRC_DIR}/spark_drift_detector.py "
         "--ref-days 1-8 "
         "--analysis-day {{ params.day_number }}"
     ),
+    retries=2,
+    retry_delay=timedelta(minutes=3),
+    execution_timeout=timedelta(minutes=45),
     dag=dag,
 )
 
