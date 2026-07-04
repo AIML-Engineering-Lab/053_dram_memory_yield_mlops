@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>P053 40-Day Production Learning Report</title>
+<style>
+:root { --ink:#172033; --muted:#5c667a; --line:#d9e1ee; --paper:#fff; --soft:#f5f8fc; --blue:#2457a6; --green:#1b7f5a; --amber:#a56613; --red:#aa2e35; --accent:#6e4aa8; }
+@page { size:A4; margin:1.45cm 1.25cm; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:"Aptos","Segoe UI",Arial,sans-serif; color:var(--ink); background:var(--paper); line-height:1.45; }
+a { color:var(--blue); }
+.page { max-width:1180px; margin:0 auto; padding:28px; }
+.cover { min-height:88vh; display:grid; align-content:center; border-bottom:4px solid var(--blue); page-break-after:always; }
+.eyebrow { text-transform:uppercase; letter-spacing:2.5px; color:var(--blue); font-size:12px; font-weight:800; }
+h1 { font-size:42px; line-height:1.05; margin:12px 0; color:#102447; }
+.subtitle { font-size:18px; color:var(--muted); max-width:900px; }
+.cover-grid,.two-col { display:grid; grid-template-columns:1.2fr .8fr; gap:24px; margin-top:28px; }
+.cover-box { border:1px solid var(--line); background:var(--soft); padding:18px; border-radius:10px; }
+.cover-box h3 { margin:0 0 10px; font-size:15px; }
+.toc a { display:block; padding:4px 0; text-decoration:none; }
+h2 { font-size:26px; margin:34px 0 12px; color:#123a72; border-bottom:2px solid var(--line); padding-bottom:7px; page-break-after:avoid; }
+h3 { font-size:18px; margin:22px 0 8px; color:#17335f; page-break-after:avoid; }
+h4 { margin:8px 0 4px; font-size:14px; }
+p { margin:8px 0; }
+.lead { font-size:16px; color:var(--muted); }
+.kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:16px 0 22px; }
+.kpi { border:1px solid var(--line); border-top:5px solid var(--blue); border-radius:8px; padding:12px; background:#fff; min-height:104px; page-break-inside:avoid; }
+.kpi-green { border-top-color:var(--green); } .kpi-warn { border-top-color:var(--amber); } .kpi-danger { border-top-color:var(--red); } .kpi-accent { border-top-color:var(--accent); }
+.kpi-label { color:var(--muted); font-weight:800; font-size:11px; text-transform:uppercase; letter-spacing:.8px; }
+.kpi-value { font-size:24px; font-weight:900; margin-top:6px; }
+.kpi-note { color:var(--muted); font-size:12px; margin-top:4px; }
+.callout { border-left:5px solid var(--blue); background:#f4f8ff; padding:12px 16px; border-radius:0 8px 8px 0; margin:12px 0; }
+.callout.warn { border-left-color:var(--amber); background:#fff8ec; } .callout.good { border-left-color:var(--green); background:#effaf5; }
+table { width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:13px; }
+th { background:#edf3fb; color:#123a72; text-align:left; font-weight:800; border:1px solid var(--line); padding:8px; }
+td { border:1px solid var(--line); padding:7px 8px; vertical-align:top; }
+tbody tr:nth-child(even) td { background:#fbfcfe; }
+.dense-table { font-size:11px; } .incident-table { font-size:10.5px; }
+.badge { display:inline-block; border-radius:999px; padding:3px 8px; font-weight:800; font-size:10.5px; white-space:nowrap; }
+.badge-good { background:#e8f7ef; color:var(--green); } .badge-warn { background:#fff0d5; color:var(--amber); } .badge-danger { background:#ffe8e9; color:var(--red); } .badge-accent { background:#f0e8ff; color:var(--accent); } .badge-neutral { background:#eef2f7; color:#4e5b70; }
+.image-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.image-card { margin:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; page-break-inside:avoid; }
+.image-card img { display:block; width:100%; } .image-card figcaption { padding:8px 10px; color:var(--muted); font-size:12px; background:#f8fafc; border-top:1px solid var(--line); }
+.flow { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0 20px; }
+.flow-step { border:1px solid var(--line); background:#fff; border-radius:8px; padding:10px; text-align:center; font-size:12px; }
+.flow-step strong { display:block; color:var(--blue); margin-bottom:4px; }
+.day-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.day-card { border:1px solid var(--line); border-radius:9px; padding:12px; background:#fff; page-break-inside:avoid; }
+.day-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); font-size:12px; }
+.day-card-head strong { color:var(--ink); font-size:14px; }
+.micro { font-size:12px; color:var(--muted); }
+.print-note { color:var(--muted); font-size:12px; margin-top:24px; border-top:1px solid var(--line); padding-top:10px; }
+.page-break { page-break-before:always; }
+@media print { .page { padding:0; max-width:none; } .cover { min-height:92vh; } h2 { page-break-after:avoid; } table,figure,.kpi,.day-card,.callout { page-break-inside:avoid; } thead { display:table-header-group; } }
+@media (max-width:860px) { .page { padding:16px; } .cover-grid,.two-col,.image-grid,.day-grid { grid-template-columns:1fr; } .kpi-grid { grid-template-columns:repeat(2,1fr); } .flow { grid-template-columns:1fr; } table { display:block; overflow-x:auto; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <section class="cover">
+    <div class="eyebrow">AIML Engineering Lab | P053</div>
+    <h1>DRAM Memory Yield Predictor<br/>40-Day Production Learning Report</h1>
+    <p class="subtitle">Interview-ready and PDF-ready operating record for a full MLOps pipeline: 16M-row training, HybridTransformerCNN, Airflow, Kafka, Spark, MLflow, S3, AWS GPU retraining, canary evaluation, rollback, incident recovery, and cost discipline.</p>
+    <div class="cover-grid">
+      <div class="cover-box"><h3>What this document is</h3><p>A living HTML report that can be regenerated as future production days complete. It starts with high-level KPIs, then gives the full day-by-day ledger, followed by narrative learnings, issues, fixes, decisions, cost, and interview talking points.</p><p><strong>Generated:</strong> 2026-07-04 07:59 UTC<br/><strong>Output:</strong> docs/P053_40_Day_Production_Learning_Report.html</p></div>
+      <div class="cover-box toc"><h3>Navigation</h3><a href="#kpis">1. Executive KPIs</a><a href="#system">2. System and Model</a><a href="#master-table">3. 40-Day Master Table</a><a href="#daywise">4. Day-by-Day Story</a><a href="#live-ops">5. Live AWS Recovery</a><a href="#costs">6. Cost and Value</a><a href="#decisions">7. Engineering Decisions</a><a href="#visuals">8. Visual Evidence</a></div>
+    </div>
+  </section>
+
+  <section id="kpis"><h2>1. Executive KPIs</h2><p class="lead">The project demonstrates an end-to-end production MLOps system for DRAM yield prediction. The key point for interviews: this is not just a model result; it is a full operational lifecycle with drift detection, retraining, canary promotion, rollback, cloud cost control, and failure recovery.</p><div class="kpi-grid">
+      <div class="kpi kpi-blue">
+        <div class="kpi-label">Production simulation</div>
+        <div class="kpi-value">40 days</div>
+        <div class="kpi-note">Feb 20 - Mar 31, 2026</div>
+      </div>
+    
+      <div class="kpi kpi-green">
+        <div class="kpi-label">Rows processed</div>
+        <div class="kpi-value">200,000,000</div>
+        <div class="kpi-note">5,000,000 rows/day</div>
+      </div>
+    
+      <div class="kpi kpi-blue">
+        <div class="kpi-label">Parquet output</div>
+        <div class="kpi-value">8.34 GB</div>
+        <div class="kpi-note">8,542.2 MB total</div>
+      </div>
+    
+      <div class="kpi kpi-green">
+        <div class="kpi-label">Wall clock</div>
+        <div class="kpi-value">219.4 min</div>
+        <div class="kpi-note">End-to-end 40-day A100 simulation</div>
+      </div>
+    
+      <div class="kpi kpi-warn">
+        <div class="kpi-label">Drift reports</div>
+        <div class="kpi-value">32</div>
+        <div class="kpi-note">24 critical drift days</div>
+      </div>
+    
+      <div class="kpi kpi-accent">
+        <div class="kpi-label">Retrains</div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-note">Day 30 retrain -&gt; v2</div>
+      </div>
+    
+      <div class="kpi kpi-danger">
+        <div class="kpi-label">Rollbacks</div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-note">Day 39 canary failure rollback</div>
+      </div>
+    
+      <div class="kpi kpi-blue">
+        <div class="kpi-label">S3 uploads</div>
+        <div class="kpi-value">72</div>
+        <div class="kpi-note">Daily artifacts persisted</div>
+      </div>
+    
+      <div class="kpi kpi-green">
+        <div class="kpi-label">Champion params</div>
+        <div class="kpi-value">317,633</div>
+        <div class="kpi-note">A100 val AUC-PR 0.0536</div>
+      </div>
+    
+      <div class="kpi kpi-accent">
+        <div class="kpi-label">Infra recovery</div>
+        <div class="kpi-value">85 GB free</div>
+        <div class="kpi-note">EC2 disk after Docker volume cleanup</div>
+      </div>
+    </div><div class="callout good"><strong>Headline:</strong> 200M rows were processed across a 40-day production simulation. Drift accumulated from Day 17, the staleness gate opened on Day 30, v2 was retrained and promoted, and a Day 39 canary failure correctly rolled back to v2.</div></section>
+
+  <section id="system"><h2>2. System and Model</h2><div class="two-col"><div><h3>Dataset and Signal</h3><table><tbody><tr><th>Training rows</th><td>10,000,000</td></tr><tr><th>Columns</th><td>37 total; 29 numeric; 7 categorical</td></tr><tr><th>Fail rate</th><td>0.617%</td></tr><tr><th>Label noise</th><td>12,464 noisy labels</td></tr><tr><th>Missing cells</th><td>3,796,537 (1.03%)</td></tr><tr><th>Spatial effect</th><td>Edge fail rate 1.154% vs center 0.353%; ratio 3.3x</td></tr></tbody></table></div><div><h3>Training and Model</h3><table><tbody><tr><th>Architecture</th><td>HybridTransformerCNN</td></tr><tr><th>Parameters</th><td>317,633</td></tr><tr><th>A100 GPU</th><td>NVIDIA A100-SXM4-40GB, 39.5 GB VRAM</td></tr><tr><th>A100 throughput</th><td>88,128 samples/sec</td></tr><tr><th>T4 throughput</th><td>18,868 samples/sec</td></tr><tr><th>Mixed precision</th><td>bfloat16 on A100; float16 + GradScaler on T4 when stable</td></tr></tbody></table></div></div><h3>Model Metrics</h3><table class="dense-table"><thead><tr><th>Split</th><th>AUC-PR</th><th>AUC-ROC</th><th>F1</th><th>Recall</th><th>Precision</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th></tr></thead><tbody><tr><td>A100 Val</td><td>0.0536</td><td>0.8157</td><td>0.1272</td><td>21.6%</td><td>9.0%</td><td>3,374</td><td>34,075</td><td>12,221</td><td>1,950,330</td></tr>
+<tr><td>A100 Test</td><td>0.0492</td><td>0.7994</td><td>0.1207</td><td>17.3%</td><td>9.3%</td><td>2,278</td><td>22,328</td><td>10,873</td><td>1,964,521</td></tr>
+<tr><td>A100 Unseen</td><td>0.0565</td><td>0.8148</td><td>0.1308</td><td>23.1%</td><td>9.1%</td><td>3,868</td><td>38,541</td><td>12,853</td><td>1,944,738</td></tr>
+<tr><td>T4 Val</td><td>0.0524</td><td>0.8100</td><td>0.1249</td><td>21.1%</td><td>8.9%</td><td>3,294</td><td>33,870</td><td>12,301</td><td>1,950,535</td></tr></tbody></table><div class="flow"><div class="flow-step"><strong>Generate</strong>Daily DRAM production rows</div><div class="flow-step"><strong>Stream</strong>Kafka producer/consumer path</div><div class="flow-step"><strong>Transform</strong>Spark ETL to Parquet/S3</div><div class="flow-step"><strong>Monitor</strong>PSI drift and staleness gate</div><div class="flow-step"><strong>React</strong>GPU retrain, canary, promote/rollback</div></div></section>
+
+  <section id="master-table" class="page-break"><h2>3. 40-Day Master Table</h2><p class="lead">This table is the operational ledger: rows, data volume, drift counts, model version, gate outcome, artifacts, and runtime for every day.</p>
+      <table class="dense-table master-table">
+        <thead>
+          <tr>
+            <th>Day</th><th>Date</th><th>Rows</th><th>Parquet MB</th><th>Scenario</th><th>Model</th>
+            <th>Crit</th><th>Warn</th><th>Max PSI</th><th>Dominant PSI Feature</th><th>Gate/Event</th><th>S3 Files</th><th>Elapsed Sec</th>
+          </tr>
+        </thead>
+        <tbody>
+    <tr><td>1</td><td>2026-02-20</td><td>5,000,000</td><td>214.1</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>32.2</td></tr>
+<tr><td>2</td><td>2026-02-21</td><td>5,000,000</td><td>213.7</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>30.9</td></tr>
+<tr><td>3</td><td>2026-02-22</td><td>5,000,000</td><td>213.7</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>32.0</td></tr>
+<tr><td>4</td><td>2026-02-23</td><td>5,000,000</td><td>214.1</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>31.1</td></tr>
+<tr><td>5</td><td>2026-02-24</td><td>5,000,000</td><td>214.1</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>32.6</td></tr>
+<tr><td>6</td><td>2026-02-25</td><td>5,000,000</td><td>213.7</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>30.9</td></tr>
+<tr><td>7</td><td>2026-02-26</td><td>5,000,000</td><td>214.0</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>30.9</td></tr>
+<tr><td>8</td><td>2026-02-27</td><td>5,000,000</td><td>214.0</td><td>steady</td><td>v1_original</td><td>-</td><td>-</td><td>-</td><td>-</td><td><span class="badge badge-neutral">Baseline</span></td><td>1</td><td>31.3</td></tr>
+<tr><td>9</td><td>2026-02-28</td><td>5,000,000</td><td>213.4</td><td>false alarm</td><td>v1_original</td><td>2</td><td>0</td><td>2.05</td><td>test_temp_c (2.05)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>33.9</td></tr>
+<tr><td>10</td><td>2026-03-01</td><td>5,000,000</td><td>214.0</td><td>auto recover</td><td>v1_original</td><td>0</td><td>0</td><td>0.08</td><td>test_temp_c (0.08)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>34.4</td></tr>
+<tr><td>11</td><td>2026-03-02</td><td>5,000,000</td><td>214.0</td><td>gradual drift</td><td>v1_original</td><td>0</td><td>0</td><td>0.05</td><td>test_temp_c (0.05)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>33.7</td></tr>
+<tr><td>12</td><td>2026-03-03</td><td>5,000,000</td><td>213.9</td><td>gradual drift</td><td>v1_original</td><td>0</td><td>0</td><td>0.06</td><td>gate_oxide_thickness_a (0.06)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>33.4</td></tr>
+<tr><td>13</td><td>2026-03-04</td><td>5,000,000</td><td>214.1</td><td>gradual drift</td><td>v1_original</td><td>0</td><td>1</td><td>0.14</td><td>gate_oxide_thickness_a (0.14)</td><td><span class="badge badge-warn">Warning</span></td><td>2</td><td>37.8</td></tr>
+<tr><td>14</td><td>2026-03-05</td><td>5,000,000</td><td>214.1</td><td>gradual drift</td><td>v1_original</td><td>1</td><td>0</td><td>0.24</td><td>gate_oxide_thickness_a (0.24)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>33.5</td></tr>
+<tr><td>15</td><td>2026-03-06</td><td>5,000,000</td><td>214.1</td><td>gradual drift</td><td>v1_original</td><td>1</td><td>0</td><td>0.37</td><td>gate_oxide_thickness_a (0.37)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>34.0</td></tr>
+<tr><td>16</td><td>2026-03-07</td><td>5,000,000</td><td>214.1</td><td>gradual drift</td><td>v1_original</td><td>1</td><td>0</td><td>0.53</td><td>gate_oxide_thickness_a (0.53)</td><td><span class="badge badge-good">Clean</span></td><td>2</td><td>37.8</td></tr>
+<tr><td>17</td><td>2026-03-08</td><td>5,000,000</td><td>213.5</td><td>gradual drift</td><td>v1_original</td><td>3</td><td>0</td><td>0.72</td><td>gate_oxide_thickness_a (0.72)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.5</td></tr>
+<tr><td>18</td><td>2026-03-09</td><td>5,000,000</td><td>213.7</td><td>gradual drift</td><td>v1_original</td><td>3</td><td>0</td><td>0.92</td><td>gate_oxide_thickness_a (0.92)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.4</td></tr>
+<tr><td>19</td><td>2026-03-10</td><td>5,000,000</td><td>213.5</td><td>sudden shift</td><td>v1_original</td><td>3</td><td>1</td><td>1.45</td><td>retention_time_ms (1.45)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>34.2</td></tr>
+<tr><td>20</td><td>2026-03-11</td><td>5,000,000</td><td>213.5</td><td>threshold 1</td><td>v1_original</td><td>3</td><td>2</td><td>1.49</td><td>retention_time_ms (1.49)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>37.0</td></tr>
+<tr><td>21</td><td>2026-03-12</td><td>5,000,000</td><td>213.5</td><td>continued drift</td><td>v1_original</td><td>3</td><td>1</td><td>1.71</td><td>gate_oxide_thickness_a (1.71)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.5</td></tr>
+<tr><td>22</td><td>2026-03-13</td><td>5,000,000</td><td>213.2</td><td>continued drift</td><td>v1_original</td><td>4</td><td>0</td><td>2.30</td><td>retention_time_ms (2.30)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.8</td></tr>
+<tr><td>23</td><td>2026-03-14</td><td>5,000,000</td><td>213.3</td><td>continued drift</td><td>v1_original</td><td>4</td><td>0</td><td>2.42</td><td>retention_time_ms (2.42)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>45.4</td></tr>
+<tr><td>24</td><td>2026-03-15</td><td>5,000,000</td><td>213.2</td><td>continued drift</td><td>v1_original</td><td>4</td><td>1</td><td>2.99</td><td>retention_time_ms (2.99)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.6</td></tr>
+<tr><td>25</td><td>2026-03-16</td><td>5,000,000</td><td>213.2</td><td>continued drift</td><td>v1_original</td><td>4</td><td>1</td><td>2.97</td><td>gate_oxide_thickness_a (2.97)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.4</td></tr>
+<tr><td>26</td><td>2026-03-17</td><td>5,000,000</td><td>213.0</td><td>threshold 2</td><td>v1_original</td><td>5</td><td>0</td><td>4.48</td><td>retention_time_ms (4.48)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>37.7</td></tr>
+<tr><td>27</td><td>2026-03-18</td><td>5,000,000</td><td>213.3</td><td>worsening</td><td>v1_original</td><td>5</td><td>0</td><td>3.68</td><td>gate_oxide_thickness_a (3.68)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>38.6</td></tr>
+<tr><td>28</td><td>2026-03-19</td><td>5,000,000</td><td>213.0</td><td>worsening</td><td>v1_original</td><td>5</td><td>0</td><td>4.41</td><td>retention_time_ms (4.41)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.9</td></tr>
+<tr><td>29</td><td>2026-03-20</td><td>5,000,000</td><td>213.1</td><td>worsening</td><td>v1_original</td><td>5</td><td>0</td><td>4.90</td><td>retention_time_ms (4.90)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.5</td></tr>
+<tr><td>30</td><td>2026-03-21</td><td>5,000,000</td><td>213.0</td><td>worsening</td><td>v2_retrained_day30</td><td>5</td><td>0</td><td>5.25</td><td>retention_time_ms (5.25)</td><td><span class="badge badge-accent">Retrain</span></td><td>2</td><td>11,820.6</td></tr>
+<tr><td>31</td><td>2026-03-22</td><td>5,000,000</td><td>213.0</td><td>retrain trigger</td><td>v2_retrained_day30</td><td>5</td><td>0</td><td>5.81</td><td>retention_time_ms (5.81)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.7</td></tr>
+<tr><td>32</td><td>2026-03-23</td><td>5,000,000</td><td>213.0</td><td>post retrain recovery</td><td>v2_retrained_day30</td><td>4</td><td>0</td><td>5.25</td><td>gate_oxide_thickness_a (5.25)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>34.2</td></tr>
+<tr><td>33</td><td>2026-03-24</td><td>5,000,000</td><td>213.0</td><td>post retrain recovery</td><td>v2_retrained_day30</td><td>4</td><td>0</td><td>6.03</td><td>retention_time_ms (6.03)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>34.4</td></tr>
+<tr><td>34</td><td>2026-03-25</td><td>5,000,000</td><td>213.0</td><td>post retrain recovery</td><td>v2_retrained_day30</td><td>4</td><td>0</td><td>5.77</td><td>retention_time_ms (5.77)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.8</td></tr>
+<tr><td>35</td><td>2026-03-26</td><td>5,000,000</td><td>213.0</td><td>post retrain recovery</td><td>v2_retrained_day30</td><td>4</td><td>0</td><td>5.18</td><td>gate_oxide_thickness_a (5.18)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>34.2</td></tr>
+<tr><td>36</td><td>2026-03-27</td><td>5,000,000</td><td>213.6</td><td>second drift</td><td>v2_retrained_day30</td><td>4</td><td>0</td><td>6.32</td><td>retention_time_ms (6.32)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.5</td></tr>
+<tr><td>37</td><td>2026-03-28</td><td>5,000,000</td><td>213.6</td><td>second drift</td><td>v2_retrained_day30</td><td>4</td><td>1</td><td>6.09</td><td>retention_time_ms (6.09)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>37.0</td></tr>
+<tr><td>38</td><td>2026-03-29</td><td>5,000,000</td><td>213.6</td><td>second drift</td><td>v2_retrained_day30</td><td>5</td><td>0</td><td>5.81</td><td>gate_oxide_thickness_a (5.81)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.6</td></tr>
+<tr><td>39</td><td>2026-03-30</td><td>5,000,000</td><td>213.6</td><td>bad model deploy</td><td>v2_retrained_day30</td><td>5</td><td>0</td><td>6.05</td><td>retention_time_ms (6.05)</td><td><span class="badge badge-danger">Rollback</span></td><td>2</td><td>38.1</td></tr>
+<tr><td>40</td><td>2026-03-31</td><td>5,000,000</td><td>213.7</td><td>final recovery</td><td>v2_retrained_day30</td><td>5</td><td>0</td><td>5.92</td><td>gate_oxide_thickness_a (5.92)</td><td><span class="badge badge-warn">Blocked by staleness</span></td><td>2</td><td>33.6</td></tr>
+        </tbody>
+      </table>
+    <div class="two-col"><div><h3>Scenario Mix</h3><table class=""><thead><tr><th>Scenario</th><th>Days</th></tr></thead><tbody><tr><td>steady</td><td>8</td></tr>
+<tr><td>gradual drift</td><td>8</td></tr>
+<tr><td>continued drift</td><td>5</td></tr>
+<tr><td>worsening</td><td>4</td></tr>
+<tr><td>post retrain recovery</td><td>4</td></tr>
+<tr><td>second drift</td><td>3</td></tr>
+<tr><td>false alarm</td><td>1</td></tr>
+<tr><td>auto recover</td><td>1</td></tr>
+<tr><td>sudden shift</td><td>1</td></tr>
+<tr><td>threshold 1</td><td>1</td></tr>
+<tr><td>threshold 2</td><td>1</td></tr>
+<tr><td>retrain trigger</td><td>1</td></tr>
+<tr><td>bad model deploy</td><td>1</td></tr>
+<tr><td>final recovery</td><td>1</td></tr></tbody></table></div><div><h3>Event Counts</h3><table class=""><thead><tr><th>Event</th><th>Count</th></tr></thead><tbody><tr><td>s3_uploaded_2_files</td><td>32</td></tr>
+<tr><td>drift_critical_4_features</td><td>10</td></tr>
+<tr><td>drift_critical_5_features</td><td>9</td></tr>
+<tr><td>s3_uploaded_1_files</td><td>8</td></tr>
+<tr><td>drift_clean</td><td>7</td></tr>
+<tr><td>drift_critical_3_features</td><td>5</td></tr>
+<tr><td>drift_warning_1_features</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_17d</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_18d</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_19d</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_20d</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_21d</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_22d</td><td>1</td></tr>
+<tr><td>retrain_blocked_staleness_23d</td><td>1</td></tr></tbody></table></div></div></section>
+
+  <section id="daywise" class="page-break"><h2>4. Day-by-Day Story</h2><p class="lead">The audit table gives the numbers; these notes explain what happened, why each stage mattered, and what a reviewer should understand from the progression.</p><div class="day-grid">
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 1</strong> <span>2026-02-20</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 2</strong> <span>2026-02-21</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.7 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 3</strong> <span>2026-02-22</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.7 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 4</strong> <span>2026-02-23</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 5</strong> <span>2026-02-24</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 6</strong> <span>2026-02-25</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.7 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 7</strong> <span>2026-02-26</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.0 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 8</strong> <span>2026-02-27</span></div>
+                <span class="badge badge-neutral">Baseline</span>
+              </div>
+              <h4>Normal production baseline</h4>
+              <p>Data was generated and uploaded with no drift report required in the warm-up window.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.0 MB | Model: v1_original | S3 files: 1</p>
+              <p class="micro"><strong>Events:</strong> s3_uploaded_1_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 9</strong> <span>2026-02-28</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>False-alarm drift test</h4>
+              <p>Two features spiked, but the retrain gate held because the overall condition was not strong enough for promotion risk.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.4 MB | Model: v1_original | S3 files: 2 | Critical features: 2 | Warning features: 0 | Max PSI: 2.05</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 10</strong> <span>2026-03-01</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>Auto-recovery check</h4>
+              <p>The previous abnormal shift disappeared, confirming the monitor can distinguish transient movement from durable drift.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.0 MB | Model: v1_original | S3 files: 2 | Critical features: 0 | Warning features: 0 | Max PSI: 0.08</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 11</strong> <span>2026-03-02</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 0 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.0 MB | Model: v1_original | S3 files: 2 | Critical features: 0 | Warning features: 0 | Max PSI: 0.05</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 12</strong> <span>2026-03-03</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 0 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.9 MB | Model: v1_original | S3 files: 2 | Critical features: 0 | Warning features: 0 | Max PSI: 0.06</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 13</strong> <span>2026-03-04</span></div>
+                <span class="badge badge-warn">Warning</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 0 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 2 | Critical features: 0 | Warning features: 1 | Max PSI: 0.14</p>
+              <p class="micro"><strong>Events:</strong> drift_warning_1_features, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 14</strong> <span>2026-03-05</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 1 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 2 | Critical features: 1 | Warning features: 0 | Max PSI: 0.24</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 15</strong> <span>2026-03-06</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 1 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 2 | Critical features: 1 | Warning features: 0 | Max PSI: 0.37</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 16</strong> <span>2026-03-07</span></div>
+                <span class="badge badge-good">Clean</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 1 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 214.1 MB | Model: v1_original | S3 files: 2 | Critical features: 1 | Warning features: 0 | Max PSI: 0.53</p>
+              <p class="micro"><strong>Events:</strong> drift_clean, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 17</strong> <span>2026-03-08</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 3 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.5 MB | Model: v1_original | S3 files: 2 | Critical features: 3 | Warning features: 0 | Max PSI: 0.72</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_3_features, retrain_blocked_staleness_17d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 18</strong> <span>2026-03-09</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Gradual drift accumulation</h4>
+              <p>Drift increased slowly; 3 critical features were tracked without immediate retraining while the staleness gate matured.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.7 MB | Model: v1_original | S3 files: 2 | Critical features: 3 | Warning features: 0 | Max PSI: 0.92</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_3_features, retrain_blocked_staleness_18d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 19</strong> <span>2026-03-10</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 3 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.5 MB | Model: v1_original | S3 files: 2 | Critical features: 3 | Warning features: 1 | Max PSI: 1.45</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_3_features, retrain_blocked_staleness_19d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 20</strong> <span>2026-03-11</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 3 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.5 MB | Model: v1_original | S3 files: 2 | Critical features: 3 | Warning features: 2 | Max PSI: 1.49</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_3_features, retrain_blocked_staleness_20d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 21</strong> <span>2026-03-12</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 3 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.5 MB | Model: v1_original | S3 files: 2 | Critical features: 3 | Warning features: 1 | Max PSI: 1.71</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_3_features, retrain_blocked_staleness_21d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 22</strong> <span>2026-03-13</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 4 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.2 MB | Model: v1_original | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 2.30</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_22d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 23</strong> <span>2026-03-14</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 4 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.3 MB | Model: v1_original | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 2.42</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_23d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 24</strong> <span>2026-03-15</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 4 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.2 MB | Model: v1_original | S3 files: 2 | Critical features: 4 | Warning features: 1 | Max PSI: 2.99</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_24d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 25</strong> <span>2026-03-16</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 4 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.2 MB | Model: v1_original | S3 files: 2 | Critical features: 4 | Warning features: 1 | Max PSI: 2.97</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_25d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 26</strong> <span>2026-03-17</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 5 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v1_original | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 4.48</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_26d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 27</strong> <span>2026-03-18</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 5 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.3 MB | Model: v1_original | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 3.68</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_27d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 28</strong> <span>2026-03-19</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 5 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v1_original | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 4.41</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_28d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 29</strong> <span>2026-03-20</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 5 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.1 MB | Model: v1_original | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 4.90</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_29d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 30</strong> <span>2026-03-21</span></div>
+                <span class="badge badge-accent">Retrain</span>
+              </div>
+              <h4>Persistent process drift</h4>
+              <p>The pipeline recorded 5 critical features and preserved the evidence needed for the Day 30 retrain decision.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 5.25</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, RETRAIN_TRIGGERED, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 31</strong> <span>2026-03-22</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Post-promotion guardrail</h4>
+              <p>The newly promoted v2 model served inference; retraining was blocked again because the model age was only one day.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 5.81</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_1d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 32</strong> <span>2026-03-23</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Recovery monitoring</h4>
+              <p>The system monitored whether v2 reduced production risk while continuing to tag residual drift.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 5.25</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_2d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 33</strong> <span>2026-03-24</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Recovery monitoring</h4>
+              <p>The system monitored whether v2 reduced production risk while continuing to tag residual drift.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 6.03</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_3d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 34</strong> <span>2026-03-25</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Recovery monitoring</h4>
+              <p>The system monitored whether v2 reduced production risk while continuing to tag residual drift.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 5.77</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_4d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 35</strong> <span>2026-03-26</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Recovery monitoring</h4>
+              <p>The system monitored whether v2 reduced production risk while continuing to tag residual drift.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.0 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 5.18</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_5d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 36</strong> <span>2026-03-27</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Second drift wave</h4>
+              <p>A second wave of drift was observed, but the staleness gate prevented excessive retraining.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.6 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 4 | Warning features: 0 | Max PSI: 6.32</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_6d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 37</strong> <span>2026-03-28</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Second drift wave</h4>
+              <p>A second wave of drift was observed, but the staleness gate prevented excessive retraining.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.6 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 4 | Warning features: 1 | Max PSI: 6.09</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_4_features, retrain_blocked_staleness_7d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 38</strong> <span>2026-03-29</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Second drift wave</h4>
+              <p>A second wave of drift was observed, but the staleness gate prevented excessive retraining.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.6 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 5.81</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_8d, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 39</strong> <span>2026-03-30</span></div>
+                <span class="badge badge-danger">Rollback</span>
+              </div>
+              <h4>Canary rollback test</h4>
+              <p>A deliberately bad candidate failed canary evaluation and the system rolled back to v2 automatically.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.6 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 6.05</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_9d, BAD_MODEL_DEPLOYED, CANARY_FAILED, ROLLBACK_TO_v2, s3_uploaded_2_files</p>
+            </section>
+            
+
+            <section class="day-card">
+              <div class="day-card-head">
+                <div><strong>Day 40</strong> <span>2026-03-31</span></div>
+                <span class="badge badge-warn">Blocked by staleness</span>
+              </div>
+              <h4>Recovered final state</h4>
+              <p>The production run finished with v2 active and rollback behavior proven.</p>
+              <p class="micro"><strong>Numbers:</strong> Rows: 5,000,000 | Parquet: 213.7 MB | Model: v2_retrained_day30 | S3 files: 2 | Critical features: 5 | Warning features: 0 | Max PSI: 5.92</p>
+              <p class="micro"><strong>Events:</strong> drift_critical_5_features, retrain_blocked_staleness_10d, SYSTEM_RECOVERED, s3_uploaded_2_files</p>
+            </section>
+            </div></section>
+
+    <section id="live-ops" class="page-break"><h2>5. Live AWS Recovery and Current Production Learning</h2><div class="callout warn"><strong>Why this section exists:</strong> The clean 40-day simulation proves the design, while the July AWS daily run shows production reality: timeout budgets, Docker disk growth, Spark memory pressure, S3 state, and retry hygiene. These are strong interview stories because they show operating judgment, not only modeling skill.</div><table class="dense-table incident-table"><thead><tr><th>Date</th><th>Area</th><th>Symptom</th><th>Root Cause</th><th>Fix</th><th>Prevention</th></tr></thead><tbody><tr><td>2026-07-01</td><td>Day 30 retrain orchestration</td><td>Day 30 drift was real, but the retrain DAG did not complete and the champion stayed on Day 1.</td><td>TriggerDagRunOperator triggered the retrain DAG without waiting for completion; EC2 cleanup could stop the host while retraining was still expected.</td><td>Added wait_for_completion=True and poke_interval=60; retrain results now upload to S3 and update pipeline_state.json on canary pass.</td><td>Production state is updated only after canary-confirmed promotion; retrain and canary artifacts are stored in S3.</td></tr>
+<tr><td>2026-07-01</td><td>GitHub Actions timeout</td><td>Manual Day 30 re-run was cancelled around the 260-minute mark.</td><td>Workflow timeout was too short for a full GPU retrain day.</td><td>Raised daily_pipeline.yml timeout-minutes to 480.</td><td>Retrain days now have an 8-hour envelope for ETL, training, canary, artifact sync, and cleanup.</td></tr>
+<tr><td>2026-07-03</td><td>Spark ETL memory pressure</td><td>Day 31 failed with Airflow zombie detection for spark_etl.</td><td>Spark local[2] with a 2 GB driver plus Docker services exceeded practical memory headroom on g4dn.xlarge.</td><td>Changed Spark tasks to local[1], 1 GB driver memory, maxResultSize=256m, shuffle.partitions=4, retries=2, and execution_timeout=45m.</td><td>Spark now uses a smaller footprint and Airflow has retry/timeout controls instead of waiting on dead processes.</td></tr>
+<tr><td>2026-07-04</td><td>EC2 disk saturation</td><td>Day 31 cron failed during source sync with tar: No space left on device.</td><td>Anonymous Docker volumes accumulated Kafka/Airflow data across repeated daily runs and consumed 78 GB; root volume reached 100%.</td><td>Deleted 26 anonymous Docker volumes, cleared local data already uploaded to S3, restarted containerd/Docker, and pruned Docker resources.</td><td>Created /etc/cron.daily/docker-cleanup and kept S3 as the durable artifact store.</td></tr>
+<tr><td>2026-07-04</td><td>Day 32 accidental retrain trigger</td><td>Day 32 finished ETL and drift detection, then blocked in trigger_retrain while the child retrain DAG stayed queued.</td><td>The daily gate only checked day &gt;= 30, so drift after Day 30 could retrigger training immediately; the retrain DAG was also paused, leaving TriggerDagRunOperator waiting.</td><td>Marked the accidental Day 32 child retrain run successful to unblock the parent daily DAG, then added a champion_updated_day cooldown read from S3 pipeline_state.json.</td><td>Days after a champion promotion now skip retrain until the model reaches the configured staleness window; queued child retrains are no longer part of normal Day 31-39 flow.</td></tr>
+<tr><td>2026-07-04</td><td>Kafka container memory</td><td>Kafka exited with code 137 during the Day 32 recovery window and Day 33 memory climbed toward the 1 GB container cap.</td><td>The Confluent Kafka JVM had a container memory limit but no explicit heap cap, so the broker could be killed under publish pressure.</td><td>Raised the live Day 33 Kafka container limit to 1.5 GB and committed KAFKA_HEAP_OPTS=-Xms256m -Xmx512m with restart: unless-stopped for future runs.</td><td>Future dispatches run Kafka with bounded heap and automatic restart behavior while leaving enough host memory for Airflow and Spark.</td></tr></tbody></table><h3>Current State Snapshot</h3><table><tbody><tr><th>Last completed live production day</th><td>Day 33</td></tr><tr><th>Next scheduled live day</th><td>Day 34</td></tr><tr><th>Champion model in pipeline_state.json</th><td>s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt</td></tr><tr><th>Known live issues fixed</th><td>Spark zombie/OOM settings reduced; EC2 disk recovered from 100% full; missing reference data now restores from S3; Day 32 accidental retrain waits are blocked by champion cooldown; Kafka heap is capped for future runs.</td></tr><tr><th>Next live actions</th><td>Let Day 34 run on the normal schedule, then re-run the Day 30 production retrain if production-validated promotion evidence is still needed.</td></tr></tbody></table></section>
+
+  <section id="costs"><h2>6. Cost and Value Ledger</h2><p class="lead">The cost story is deliberately practical: use A100 only when its throughput is justified, use T4 for the 317K-parameter production retrains, stop idle RDS/EC2, and keep S3 as durable storage.</p><table class=""><thead><tr><th>Cost Item</th><th>Unit Cost / Estimate</th><th>Role</th><th>Planning Note</th></tr></thead><tbody><tr><td>AWS EC2 g4dn.xlarge</td><td>$0.526/hour</td><td>T4 GPU host for Airflow-triggered retrains and production runs</td><td>~$2.10 for 4 hours; ~$52.60 for 100 hours</td></tr>
+<tr><td>AWS RDS db.t3.micro</td><td>~$0.018/hour</td><td>PostgreSQL backend for MLflow when AWS is active</td><td>~$13/month if left running; stopped between daily runs to reduce idle cost</td></tr>
+<tr><td>S3 artifacts</td><td>Low single-digit USD/month at this scale</td><td>Models, Parquet, drift reports, metrics, checkpoints</td><td>40-day Parquet footprint in simulation: ~8.5 GB plus models/JSON</td></tr>
+<tr><td>Colab fallback T4</td><td>~1.36 CU/hour</td><td>Fallback retraining if AWS GPU is unavailable</td><td>100 CU pack was the budget choice for multiple T4 runs</td></tr>
+<tr><td>Colab A100</td><td>~6.79 CU/hour</td><td>Initial high-speed training and large simulation fallback</td><td>Useful for &gt;1 TB/day or heavy experimentation</td></tr>
+<tr><td>Estimated business upside</td><td>$36M/year</td><td>From avoided escaped DRAM defects</td><td>67 defects/month avoided x $45K x 12 months</td></tr></tbody></table></section>
+
+  <section id="decisions"><h2>7. Engineering Decisions and Interview Talking Points</h2><table class=""><thead><tr><th>Decision</th><th>Why It Matters</th></tr></thead><tbody><tr><td>AUC-PR as primary metric</td><td>At roughly 1:159 defect imbalance, AUC-ROC can look healthy while missing the minority class. AUC-PR directly measures ranking quality for defects.</td></tr>
+<tr><td>HybridTransformerCNN</td><td>Per-feature tokenization models heterogeneous DRAM parameters; CNN layers capture spatial wafer patterns; fusion MLP combines process, test, and location signals.</td></tr>
+<tr><td>Focal loss</td><td>The model must learn from rare defects without synthetic oversampling noise. Focal loss emphasizes hard minority examples.</td></tr>
+<tr><td>bfloat16 on A100</td><td>float16 with GradScaler collapsed under focal-loss gradients; bfloat16 preserves exponent range and trained stably without GradScaler.</td></tr>
+<tr><td>T4 for production retrains</td><td>The 317K-parameter model fits comfortably on T4. A100 is reserved for very large training/data volumes.</td></tr>
+<tr><td>Staleness gate</td><td>Early drift is tagged and monitored, but retraining is blocked until the model has enough production age to avoid thrashing.</td></tr>
+<tr><td>Canary before promotion</td><td>A retrained model becomes champion only after canary evaluation; Day 39 deliberately tested rollback behavior.</td></tr>
+<tr><td>S3 as durable system of record</td><td>Local EC2 files are disposable. Models, data, drift reports, canary results, and pipeline state live on S3.</td></tr></tbody></table><div class="callout good"><strong>Best interview framing:</strong> Start with the business problem and imbalance, then explain the metric choice, the bfloat16 failure/fix, the drift gate, the Day 30 retrain, the Day 39 rollback, and finally the live AWS recovery incidents. That sequence shows both ML depth and production ownership.</div></section>
+
+  <section id="visuals" class="page-break"><h2>8. Visual Evidence</h2><p class="lead">Existing project assets are embedded as evidence for PDF conversion. They keep the report visual without relying on external image generation.</p><div class="image-grid">
+      <figure class="image-card">
+        <img src="../assets/p53_37_simulation_summary.png" alt="40-day production run summary"/>
+        <figcaption>40-day production run summary</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_33_drift_timeline.png" alt="Drift timeline heatmap"/>
+        <figcaption>Drift timeline heatmap</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_34_retrain_story.png" alt="Retrain, canary, and rollback story"/>
+        <figcaption>Retrain, canary, and rollback story</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_38_psi_waterfall.png" alt="PSI feature waterfall"/>
+        <figcaption>PSI feature waterfall</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_28_architecture.png" alt="End-to-end architecture"/>
+        <figcaption>End-to-end architecture</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_30_deployment_stack.png" alt="Deployment stack"/>
+        <figcaption>Deployment stack</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_39_a100_training_results.png" alt="A100 training results"/>
+        <figcaption>A100 training results</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_40_hardware_benchmark.png" alt="Hardware benchmark"/>
+        <figcaption>Hardware benchmark</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_31_cost_analysis.png" alt="Cost analysis"/>
+        <figcaption>Cost analysis</figcaption>
+      </figure>
+    
+
+      <figure class="image-card">
+        <img src="../assets/p53_41_a100_shap_importance.png" alt="Feature importance"/>
+        <figcaption>Feature importance</figcaption>
+      </figure>
+    </div></section>
+
+  <section><h2>9. Update Plan for Future Days</h2><ol><li>Let daily pipeline finish new days and sync artifacts to S3.</li><li>Export or update local JSON artifacts: simulation timeline, live state, and metrics.</li><li>Run <code>python3 scripts/build_40day_learning_report.py</code>.</li><li>Open the HTML in a browser and print to PDF after the final days are complete.</li><li>Add final screenshots from GitHub Actions, S3, MLflow, Airflow, and Grafana if desired.</li></ol><p class="print-note">PDF tip: use browser print, A4, background graphics enabled, margins default or none. The stylesheet repeats table headers and avoids page breaks inside key cards.</p></section>
+</main>
+</body>
+</html>
