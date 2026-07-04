@@ -12,6 +12,7 @@ This is the PRIMARY production DAG — runs 40 times in the simulation.
 """
 
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -24,6 +25,9 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 PROJECT_ROOT = "/opt/airflow"
 DATA_DIR = f"{PROJECT_ROOT}/data"
 SRC_DIR = f"{PROJECT_ROOT}/src"
+S3_BUCKET = os.getenv("S3_BUCKET", "p053-mlflow-artifacts")
+S3_STATE_KEY = os.getenv("S3_STATE_KEY", "state/pipeline_state.json")
+MIN_DAYS_BETWEEN_RETRAINS = int(os.getenv("MIN_DAYS_BETWEEN_RETRAINS", "30"))
 
 default_args = {
     "owner": "p053",
@@ -113,6 +117,21 @@ drift_detection = BashOperator(
 
 
 # ─── TASK 5: Check retrain criteria ──────────────────────
+def _load_champion_updated_day() -> int | None:
+    """Return the latest champion day from S3 pipeline state, if available."""
+    try:
+        import boto3
+
+        s3 = boto3.client("s3")
+        obj = s3.get_object(Bucket=S3_BUCKET, Key=S3_STATE_KEY)
+        state = json.loads(obj["Body"].read().decode("utf-8"))
+        champion_day = state.get("champion_updated_day")
+        return int(champion_day) if champion_day is not None else None
+    except Exception as exc:
+        print(f"[WARN] Could not read champion_updated_day from S3 state: {exc}")
+        return None
+
+
 def _check_retrain_criteria(**context):
     """Read drift report and decide whether to trigger retrain."""
     day = context["params"]["day_number"]
@@ -140,6 +159,17 @@ def _check_retrain_criteria(**context):
     if day < 30:
         print(f"[INFO] Day {day} < 30: staleness gate blocks retrain (critical={critical})")
         return "skip_retrain"
+
+    champion_updated_day = _load_champion_updated_day()
+    if champion_updated_day is not None and day > champion_updated_day:
+        model_age_days = day - champion_updated_day
+        if model_age_days < MIN_DAYS_BETWEEN_RETRAINS:
+            print(
+                f"[INFO] Day {day}: champion updated on day {champion_updated_day}; "
+                f"model age {model_age_days}d < {MIN_DAYS_BETWEEN_RETRAINS}d cooldown. "
+                f"Staleness gate blocks retrain (critical={critical})."
+            )
+            return "skip_retrain"
 
     if should_retrain:
         print(f"[RETRAIN] Day {day}: {critical} critical features → triggering retrain!")
