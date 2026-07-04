@@ -102,7 +102,7 @@ drift_detection = BashOperator(
         "--conf spark.driver.maxResultSize=256m "
         "--conf spark.sql.shuffle.partitions=4 "
         f"{SRC_DIR}/spark_drift_detector.py "
-        "--ref-days 1-8 "
+        "--ref-days 22-30 "
         "--analysis-day {{ params.day_number }}"
     ),
     retries=2,

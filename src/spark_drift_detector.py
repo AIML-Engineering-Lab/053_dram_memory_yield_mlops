@@ -21,6 +21,7 @@ Usage:
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -49,16 +50,40 @@ PSI_CRITICAL = 0.2
 MIN_DRIFTED_FEATURES = 3
 N_BINS = 10
 EPSILON = 1e-6  # Prevent log(0) in PSI
+MAX_PSI_SAMPLE_ROWS = 100_000
+S3_BUCKET = os.environ.get("S3_BUCKET", "p053-mlflow-artifacts")
+AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-west-2")
 
 
 def create_spark(app_name: str = "P053_DriftDetector") -> SparkSession:
     """Create SparkSession."""
     return (SparkSession.builder
         .appName(app_name)
-        .config("spark.sql.shuffle.partitions", "8")
-        .config("spark.driver.memory", "2g")
+        .config("spark.sql.shuffle.partitions", "4")
+        .config("spark.driver.memory", "1g")
+        .config("spark.driver.maxResultSize", "256m")
         .getOrCreate()
     )
+
+
+def restore_day_from_s3(day: int) -> bool:
+    """Download a missing production Parquet file from S3 if it exists."""
+    local_path = Path(PRODUCTION_DIR) / f"day_{day:02d}.parquet"
+    if local_path.exists():
+        return True
+
+    s3_key = f"data/production/day_{day:02d}/day_{day:02d}.parquet"
+    try:
+        import boto3
+        client = boto3.client("s3", region_name=AWS_REGION)
+        client.head_object(Bucket=S3_BUCKET, Key=s3_key)
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        client.download_file(S3_BUCKET, s3_key, str(local_path))
+        print(f"  Restored day {day:02d} from s3://{S3_BUCKET}/{s3_key}")
+        return True
+    except Exception as exc:
+        print(f"  [WARN] Could not restore day {day:02d} from S3: {exc}")
+        return False
 
 
 def compute_psi_for_feature(ref_values: np.ndarray,
@@ -71,6 +96,9 @@ def compute_psi_for_feature(ref_values: np.ndarray,
 
     Uses quantile-based binning on the reference distribution.
     """
+    if len(ref_values) == 0 or len(analysis_values) == 0:
+        return 0.0
+
     # Create bins from reference quantiles
     quantiles = np.linspace(0, 100, n_bins + 1)
     bin_edges = np.percentile(ref_values, quantiles)
@@ -101,6 +129,10 @@ def detect_drift(spark: SparkSession,
     Returns:
         Dict with per-feature PSI, drift severity, retrain recommendation
     """
+    for day in range(ref_start_day, ref_end_day + 1):
+        restore_day_from_s3(day)
+    restore_day_from_s3(analysis_day)
+
     # Load reference data
     ref_paths = [
         str(Path(PRODUCTION_DIR) / f"day_{d:02d}.parquet")
@@ -127,9 +159,9 @@ def detect_drift(spark: SparkSession,
 
     for feat in NUMERIC_FEATURES:
         # Collect feature values (sample if too large for driver memory)
-        if ref_count > 2_000_000:
+        if ref_count > MAX_PSI_SAMPLE_ROWS:
             ref_vals = np.array(
-                ref_df.select(feat).sample(fraction=2_000_000/ref_count, seed=42)
+                ref_df.select(feat).sample(fraction=MAX_PSI_SAMPLE_ROWS/ref_count, seed=42)
                 .filter(F.col(feat).isNotNull())
                 .rdd.flatMap(lambda x: x).collect()
             )
@@ -139,9 +171,9 @@ def detect_drift(spark: SparkSession,
                 .rdd.flatMap(lambda x: x).collect()
             )
 
-        if analysis_count > 2_000_000:
+        if analysis_count > MAX_PSI_SAMPLE_ROWS:
             analysis_vals = np.array(
-                analysis_df.select(feat).sample(fraction=2_000_000/analysis_count, seed=42)
+                analysis_df.select(feat).sample(fraction=MAX_PSI_SAMPLE_ROWS/analysis_count, seed=42)
                 .filter(F.col(feat).isNotNull())
                 .rdd.flatMap(lambda x: x).collect()
             )
