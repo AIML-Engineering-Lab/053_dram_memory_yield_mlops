@@ -300,6 +300,7 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 |------|------|-------------|
 | Memory_Yield_Predictor_Report.html | 4.4 MB | Main project report (7 sections, 20 embedded plots) |
 | Memory_Yield_Predictor_Report.pdf | 3.7 MB | PDF version |
+| S3_Artifacts_Inventory_Report.html/pdf | — | Final S3 artifact inventory, day-wise retained objects, versions, cost posture |
 | Big_Data_Concepts_Guide.html/pdf | 0.6 MB | Spark, Kafka, distributed systems |
 | PyTorch_Advanced_Guide.html/pdf | 0.7 MB | Mixed precision, AMP, GradScaler |
 | Cloud_Infrastructure_Guide.html/pdf | 0.6 MB | AWS architecture, costs, operations |

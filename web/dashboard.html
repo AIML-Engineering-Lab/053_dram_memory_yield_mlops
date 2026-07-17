@@ -71,7 +71,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0d111
 <div class="section-header">Infrastructure & GPU Benchmarks</div>
 <div class="charts">
   <div class="chart-box"><div class="chart-title">GPU Throughput Comparison (samples/sec)</div><div id="chart-gpu"></div></div>
-  <div class="chart-box"><div class="chart-title">Business Impact — Annual Cost Savings</div><div id="chart-business"></div></div>
+  <div class="chart-box"><div class="chart-title">Business Impact — Production Run Savings</div><div id="chart-business"></div></div>
 </div>
 
 <!-- ═══════ SECTION: FEATURES ═══════ -->
@@ -82,10 +82,10 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0d111
   <div class="chart-box"><div class="chart-title">Deployment Architecture Stack</div><div id="chart-deploy"></div></div>
 </div>
 
-<!-- ═══════ SECTION: 40-DAY SIMULATION ═══════ -->
-<div class="section-header">40-Day Production Simulation</div>
+<!-- ═══════ SECTION: 40-DAY RUN ═══════ -->
+<div class="section-header">40-Day Production Run</div>
 <div class="note">
-  <strong>Live data:</strong> Simulation runs 40 days of production traffic with injected drift, automated retraining, canary deployment, and rollback scenarios.
+  <strong>Live run:</strong> The pipeline executes 40 production days with injected drift, automated retraining, canary deployment, and rollback protection.
 </div>
 <div class="charts">
   <div class="chart-box full"><div class="chart-title">Failure Rate Over 40 Days (Drift → Retrain → Recovery)</div><div id="chart-sim-failure" style="height:320px"></div></div>
@@ -274,7 +274,7 @@ Plotly.newPlot('chart-deploy',[{
 }],{...layout_base,xaxis:{...layout_base.xaxis,title:'Completion %',range:[0,120]},
   yaxis:{...layout_base.yaxis,autorange:'reversed'},height:340,margin:{l:150,r:20,t:10,b:40}},noConfig);
 // ═══════════════════════════════════════════════
-// 40-DAY SIMULATION CHARTS
+// 40-DAY PRODUCTION RUN CHARTS
 // ═══════════════════════════════════════════════
 // Load simulation_timeline.json and render charts
 (async function(){
@@ -286,7 +286,7 @@ Plotly.newPlot('chart-deploy',[{
     // Fallback placeholder if file not found
     ['chart-sim-failure','chart-sim-psi','chart-sim-events'].forEach(id=>{
       const el=document.getElementById(id);
-      if(el) el.innerHTML='<p style="color:#8b949e;padding:40px;text-align:center">Run the 40-day simulation first to populate these charts.<br><code>python -m src.run_simulation --fast</code></p>';
+      if(el) el.innerHTML='<p style="color:#8b949e;padding:40px;text-align:center">Generate the 40-day production-run timeline first to populate these charts.</p>';
     });
     return;
   }
@@ -324,7 +324,7 @@ Plotly.newPlot('chart-deploy',[{
     marker:{color:barColors,line:{color:'#30363d',width:0.5}},
     hovertemplate:'Day %{x}<br>Fail Rate: %{y:.2f}%<extra></extra>'
   }],{...layout_base,height:320,shapes:retrainShapes,
-    xaxis:{...layout_base.xaxis,title:'Simulation Day',dtick:5},
+    xaxis:{...layout_base.xaxis,title:'Production Day',dtick:5},
     yaxis:{...layout_base.yaxis,title:'Failure Rate (%)'},
     annotations:[{x:0.02,y:0.95,xref:'paper',yref:'paper',text:'Blue=Steady | Orange=Drift | Red=Critical | Green=Recovery | Purple=False Alarm',
       font:{size:9,color:'#8b949e'},showarrow:false,xanchor:'left'}]
@@ -381,7 +381,7 @@ Plotly.newPlot('chart-deploy',[{
   }).filter(t=>t.x.length>0);
 
   Plotly.newPlot('chart-sim-events',traces,{...layout_base,height:320,showlegend:false,
-    xaxis:{...layout_base.xaxis,title:'Simulation Day',dtick:5},
+    xaxis:{...layout_base.xaxis,title:'Production Day',dtick:5},
     yaxis:{...layout_base.yaxis,categoryorder:'array',categoryarray:eventTypes.map(e=>e.replace(/_/g,' ')).reverse()}
   },noConfig);
 })();

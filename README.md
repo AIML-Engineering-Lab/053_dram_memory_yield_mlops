@@ -83,6 +83,11 @@ The AWS daily production run completed all intended 40 scheduled days. A later a
 
 Final AWS resource audit: EC2 `g4dn.xlarge` stopped, RDS `db.t3.micro` stopped, and no NAT gateways active. Remaining billable inventory is 125 GiB gp3 EBS, 20 GiB RDS storage, 21 automated RDS snapshots, ~4.80 GB current S3 data with 387 object versions, one ECR repo, and one associated public IPv4/EIP. Retention decision: keep minimal evidence resources for now and accept small residual storage/IP charges.
 
+Final evidence reports:
+- [40-Day Production Learning Report](docs/P053_40_Day_Production_Learning_Report.html) ([PDF](docs/P053_40_Day_Production_Learning_Report.pdf))
+- [S3 Artifacts Inventory Report](docs/S3_Artifacts_Inventory_Report.html) ([PDF](docs/S3_Artifacts_Inventory_Report.pdf))
+- [Main Project Report](docs/Memory_Yield_Predictor_Report.html) ([PDF](docs/Memory_Yield_Predictor_Report.pdf))
+
 ### Model Versions
 
 | Version | Created | Trigger | Artifact |

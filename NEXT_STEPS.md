@@ -2,7 +2,7 @@
 
 **Status key:** TODO | IN-PROGRESS | DONE | BLOCKED
 
-## Final Closure Status — 2026-07-11
+## Final Closure Status — 2026-07-17
 
 | Area | Status | Notes |
 |---|---|---|
@@ -11,13 +11,13 @@
 | Scheduled runs | DISABLED | Days 41-45 were real unintended scheduled runs. Daily cron is now disabled and expensive workflow steps are guarded by `should_run`. |
 | AWS compute shutdown | DONE | EC2 `g4dn.xlarge` stopped, RDS `db.t3.micro` stopped, no NAT gateways available or pending. |
 | Residual AWS costs | KEEP MINIMAL FOR NOW | Remaining billable inventory: 125 GiB gp3 EBS, 20 GiB RDS storage, 21 automated RDS snapshots, ~4.80 GB current S3 data with 387 versions, 1 ECR repo, and 1 associated public IPv4/EIP. Day 41-45 extra artifacts can be deleted separately. |
-| Final reports | IN-PROGRESS | `docs/P053_40_Day_Production_Learning_Report.html` refreshed with the Day 41-45 schedule leak and July 17 workflow fix; PDF export and optional screenshots are final polish. |
+| Final reports | DONE | `docs/P053_40_Day_Production_Learning_Report.html`, `docs/Memory_Yield_Predictor_Report.html`, and `docs/S3_Artifacts_Inventory_Report.html` generated with PDFs and pushed. |
 
 ### Only Remaining Decisions
 
 1. Retention decision made: keep S3/RDS/EBS/EIP/ECR evidence resources for now and accept small residual storage/IP charges.
-2. Capture optional console screenshots: GitHub Actions Day 40 success, S3 model/artifact prefixes, EC2 stopped, RDS stopped, CloudWatch billing alarm.
-3. Commit/push final docs and optionally tag the archive release.
+2. Optional only: capture console screenshots if you want visual proof outside the committed HTML/PDF reports.
+3. Optional only: tag an archive release after final review.
 
 ---
 

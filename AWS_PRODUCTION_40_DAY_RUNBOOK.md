@@ -10,6 +10,8 @@ The intended live AWS daily production run is complete. A 2026-07-17 audit found
 
 AWS compute shutdown has been verified: EC2 `i-0562654a22d44346f` is stopped, RDS `p053-mlflow-db` is stopped, and no NAT gateways are available or pending. This stops EC2/RDS/NAT compute charges, but it does not guarantee an exact `$0` future bill. Remaining billable inventory from the final audit: 125 GiB gp3 EBS, 20 GiB RDS storage, 21 automated RDS snapshots, ~4.80 GB current S3 data with 387 object versions, 1 ECR repo, and 1 associated public IPv4/EIP. Retention decision: keep minimal evidence resources for now and accept small residual charges.
 
+Final artifact evidence is committed in `docs/S3_Artifacts_Inventory_Report.html` and `docs/S3_Artifacts_Inventory_Report.pdf`. That report captures S3 current objects, version counts, day-wise artifacts, model artifacts, largest objects, Day 41-45 accidental extras, and the retained AWS cost posture.
+
 ## Success Criteria
 
 - [x] EC2 `g4dn.xlarge` launched and supported the production daily run path.
