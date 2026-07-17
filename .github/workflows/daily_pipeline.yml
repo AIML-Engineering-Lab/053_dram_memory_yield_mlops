@@ -1,7 +1,8 @@
 # ═══════════════════════════════════════════════════════════════
 # P053 — Daily Production Pipeline
 # ═══════════════════════════════════════════════════════════════
-# Runs ONCE per real calendar day (cron: 00:00 UTC).
+# Previously ran once per real calendar day (cron: 00:00 UTC).
+# Cron is disabled after Day 40 completion to prevent further AWS cost.
 # Reads current day number from S3 state file, runs that day's
 # pipeline on EC2 via Airflow, increments the counter on S3.
 #
@@ -20,7 +21,7 @@
 #        f. Retrain DAG: GPU retrain → canary eval → promote/rollback
 #   5. Upload drift report + metrics to S3
 #   6. Increment current_day in S3 state file
-#   7. If current_day > 40 → mark production run COMPLETE
+#   7. If current_day > 40 → mark production run COMPLETE and skip expensive steps
 #
 # Secrets required (GitHub → Settings → Secrets):
 #   EC2_HOST        — public IP of EC2 instance (update when IP changes)
@@ -32,9 +33,8 @@
 name: Daily Production Pipeline
 
 on:
-  schedule:
-    # Run every day at 00:00 UTC
-    - cron: '0 0 * * *'
+  # Daily cron disabled after the 40-day production run completed.
+  # Re-enable only for a deliberate new run window with budget approval.
   workflow_dispatch:
     # Allow manual trigger with optional day override
     inputs:
@@ -98,16 +98,27 @@ jobs:
             echo "Day overridden to: $CURRENT_DAY"
           fi
 
+          SHOULD_RUN="true"
+          if [ "$SIM_STATUS" = "complete" ] || [ "$CURRENT_DAY" -gt 40 ]; then
+            SHOULD_RUN="false"
+          fi
+
           echo "current_day=$CURRENT_DAY" >> "$GITHUB_OUTPUT"
           echo "sim_status=$SIM_STATUS" >> "$GITHUB_OUTPUT"
           echo "champion_model=$CHAMPION" >> "$GITHUB_OUTPUT"
-          echo "Day: $CURRENT_DAY | Status: $SIM_STATUS | Champion: $CHAMPION"
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+          echo "Day: $CURRENT_DAY | Status: $SIM_STATUS | Champion: $CHAMPION | Should run: $SHOULD_RUN"
 
       # ── 4. Check if production run is already complete ───────────
       - name: Check production run status
         run: |
           STATUS="${{ steps.state.outputs.sim_status }}"
           DAY="${{ steps.state.outputs.current_day }}"
+          SHOULD_RUN="${{ steps.state.outputs.should_run }}"
+          if [ "$SHOULD_RUN" != "true" ]; then
+            echo "✅ 40-day production run already complete or day is beyond 40. Expensive AWS steps will be skipped."
+            exit 0
+          fi
           if [ "$STATUS" = "complete" ]; then
             echo "✅ 40-day production run already complete. Nothing to do."
             exit 0
@@ -120,6 +131,7 @@ jobs:
 
       # ── 5. Verify EC2 is running, start if stopped ────────────────
       - name: Ensure EC2 is running
+        if: steps.state.outputs.should_run == 'true'
         run: |
           # ── Start RDS first (takes ~3-5 min; EC2 wait overlaps it) ──
           RDS_STATUS=$(aws rds describe-db-instances \
@@ -184,6 +196,7 @@ jobs:
 
       # ── 6. Open SSH for this GitHub runner ───────────────────────
       - name: Authorize runner SSH ingress
+        if: steps.state.outputs.should_run == 'true'
         id: ssh_ingress
         env:
           INSTANCE_ID: ${{ steps.ec2.outputs.instance_id }}
@@ -208,6 +221,7 @@ jobs:
 
       # ── 7. Setup SSH key ──────────────────────────────────────────
       - name: Setup SSH key
+        if: steps.state.outputs.should_run == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/p053-key.pem
@@ -216,6 +230,7 @@ jobs:
 
       # ── 8. Trigger Airflow DAG on EC2 ─────────────────────────────
       - name: Trigger daily pipeline DAG on EC2
+        if: steps.state.outputs.should_run == 'true'
         id: dag_trigger
         env:
           EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
@@ -413,6 +428,7 @@ jobs:
 
       # ── 9. Poll DAG run until success/failure (timeout 4h) ────────
       - name: Wait for DAG run to complete
+        if: steps.state.outputs.should_run == 'true'
         env:
           EC2_IP: ${{ steps.ec2.outputs.ec2_ip }}
           DAY: ${{ steps.state.outputs.current_day }}
@@ -456,6 +472,7 @@ jobs:
 
       # ── 10. Collect results from S3 ───────────────────────────────
       - name: Collect day results from S3
+        if: steps.state.outputs.should_run == 'true'
         env:
           DAY: ${{ steps.state.outputs.current_day }}
         run: |
@@ -520,6 +537,7 @@ jobs:
 
       # ── 11. Increment day counter in S3 ───────────────────────────
       - name: Advance pipeline state in S3
+        if: steps.state.outputs.should_run == 'true'
         env:
           DAY: ${{ steps.state.outputs.current_day }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}

@@ -77,6 +77,12 @@ Predicts die-level failures before electrical test completion using 36 semicondu
 
 The full production lifecycle processed **200M rows across 40 days** on an A100 GPU in 219.4 minutes. The pipeline automatically detected drift, triggered 1 retrain, evaluated via canary, and executed 1 rollback -- all without manual intervention.
 
+### Live AWS Daily Run Closeout (July 11, 2026)
+
+The AWS daily production run completed all intended 40 scheduled days. A later audit found the schedule kept running through unintended Days 41-45 because a completion check used `exit 0` inside one step while GitHub Actions continued later AWS-starting steps. The workflow cron is now disabled and all expensive steps are guarded by `should_run`; S3 `pipeline_state.json` currently reports `current_day=46`, `last_completed_day=45`, and `status=complete`, with the Day 30 v2 model still serving as champion: `s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt`.
+
+Final AWS resource audit: EC2 `g4dn.xlarge` stopped, RDS `db.t3.micro` stopped, and no NAT gateways active. Remaining billable inventory is 125 GiB gp3 EBS, 20 GiB RDS storage, 21 automated RDS snapshots, ~4.80 GB current S3 data with 387 object versions, one ECR repo, and one associated public IPv4/EIP. Retention decision: keep minimal evidence resources for now and accept small residual storage/IP charges.
+
 ### Model Versions
 
 | Version | Created | Trigger | Artifact |

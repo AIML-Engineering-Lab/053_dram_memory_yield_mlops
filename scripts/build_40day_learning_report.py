@@ -76,6 +76,22 @@ LIVE_AWS_RECOVERY_EVENTS = [
         "fix": "Raised the live Day 33 Kafka container limit to 1.5 GB and committed KAFKA_HEAP_OPTS=-Xms256m -Xmx512m with restart: unless-stopped for future runs.",
         "prevention": "Future dispatches run Kafka with bounded heap and automatic restart behavior while leaving enough host memory for Airflow and Spark.",
     },
+    {
+        "date": "2026-07-11",
+        "area": "Final Day 40 closure",
+        "symptom": "The live AWS daily pipeline completed all intended 40 days, but project reports and trackers still reflected the Day 33 interim recovery point.",
+        "root_cause": "The recovery report was intentionally generated mid-run and had not yet been refreshed after the scheduled Day 34-40 GitHub Actions runs completed.",
+        "fix": "Audited S3 pipeline_state.json, Day 29-40 artifacts, GitHub Actions run history, and AWS resource state; refreshed the report to Day 40 complete with the Day 30 v2 champion still active.",
+        "prevention": "Treat S3 pipeline_state.json as the final source of truth before publishing status documents or cost-closeout notes.",
+    },
+    {
+        "date": "2026-07-17",
+        "area": "Post-Day40 schedule guard",
+        "symptom": "Scheduled GitHub Actions runs continued after Day 40 and generated real Day 41-45 Parquet, drift, and summary artifacts.",
+        "root_cause": "The completion check used exit 0 inside one step, but GitHub Actions continued to later steps that started RDS/EC2 and triggered Airflow.",
+        "fix": "Disabled the cron schedule and added a should_run guard to every AWS-starting or Airflow-triggering workflow step.",
+        "prevention": "Future runs require explicit workflow_dispatch, and complete/day>40 state skips expensive AWS steps instead of only logging completion.",
+    },
 ]
 
 DECISIONS = [
@@ -93,6 +109,7 @@ COST_ROWS = [
     ("AWS EC2 g4dn.xlarge", "$0.526/hour", "T4 GPU host for Airflow-triggered retrains and production runs", "~$2.10 for 4 hours; ~$52.60 for 100 hours"),
     ("AWS RDS db.t3.micro", "~$0.018/hour", "PostgreSQL backend for MLflow when AWS is active", "~$13/month if left running; stopped between daily runs to reduce idle cost"),
     ("S3 artifacts", "Low single-digit USD/month at this scale", "Models, Parquet, drift reports, metrics, checkpoints", "40-day Parquet footprint in simulation: ~8.5 GB plus models/JSON"),
+    ("Final residual AWS resources", "Billable until deleted or expired", "125 GiB gp3 EBS; 20 GiB RDS; 21 automated RDS snapshots; ~4.80 GB current S3 data with 387 object versions; 1 ECR repo; 1 associated public IPv4/EIP", "EC2/RDS/NAT compute is stopped. User chose to keep minimal evidence resources for now; Day 41-45 cleanup remains optional."),
     ("Colab fallback T4", "~1.36 CU/hour", "Fallback retraining if AWS GPU is unavailable", "100 CU pack was the budget choice for multiple T4 runs"),
     ("Colab A100", "~6.79 CU/hour", "Initial high-speed training and large simulation fallback", "Useful for >1 TB/day or heavy experimentation"),
     ("Estimated business upside", "$36M/year", "From avoided escaped DRAM defects", "67 defects/month avoided x $45K x 12 months"),
@@ -430,7 +447,7 @@ tbody tr:nth-child(even) td {{ background:#fbfcfe; }}
 
   <section id="daywise" class="page-break"><h2>4. Day-by-Day Story</h2><p class="lead">The audit table gives the numbers; these notes explain what happened, why each stage mattered, and what a reviewer should understand from the progression.</p><div class="day-grid">{build_day_cards(days, rows_per_day)}</div></section>
 
-    <section id="live-ops" class="page-break"><h2>5. Live AWS Recovery and Current Production Learning</h2><div class="callout warn"><strong>Why this section exists:</strong> The clean 40-day simulation proves the design, while the July AWS daily run shows production reality: timeout budgets, Docker disk growth, Spark memory pressure, S3 state, and retry hygiene. These are strong interview stories because they show operating judgment, not only modeling skill.</div>{table_from_rows(['Date','Area','Symptom','Root Cause','Fix','Prevention'], incident_rows, 'dense-table incident-table')}<h3>Current State Snapshot</h3><table><tbody><tr><th>Last completed live production day</th><td>Day 33</td></tr><tr><th>Next scheduled live day</th><td>Day 34</td></tr><tr><th>Champion model in pipeline_state.json</th><td>s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt</td></tr><tr><th>Known live issues fixed</th><td>Spark zombie/OOM settings reduced; EC2 disk recovered from 100% full; missing reference data now restores from S3; Day 32 accidental retrain waits are blocked by champion cooldown; Kafka heap is capped for future runs.</td></tr><tr><th>Next live actions</th><td>Let Day 34 run on the normal schedule, then re-run the Day 30 production retrain if production-validated promotion evidence is still needed.</td></tr></tbody></table></section>
+    <section id="live-ops" class="page-break"><h2>5. Live AWS Recovery and Current Production Learning</h2><div class="callout warn"><strong>Why this section exists:</strong> The clean 40-day simulation proves the design, while the July AWS daily run shows production reality: timeout budgets, Docker disk growth, Spark memory pressure, S3 state, retry hygiene, schedule guard mistakes, and final cloud shutdown. These are strong interview stories because they show operating judgment, not only modeling skill.</div>{table_from_rows(['Date','Area','Symptom','Root Cause','Fix','Prevention'], incident_rows, 'dense-table incident-table')}<h3>Current State Snapshot</h3><table><tbody><tr><th>Intended production scope</th><td>Day 1-40 complete; Day 30 v2 champion retained through the intended run.</td></tr><tr><th>Current S3 pipeline state</th><td>complete; current_day=46; last_completed_day=45; last_run=2026-07-16T02:05:57Z</td></tr><tr><th>Post-Day40 finding</th><td>Days 41-45 were real unintended scheduled runs caused by a workflow guard bug; cron is now disabled and AWS-starting steps are guarded by should_run.</td></tr><tr><th>Champion model in pipeline_state.json</th><td>s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt</td></tr><tr><th>Artifact status</th><td>Days 29-45 have current-prefix production Parquet, drift reports, and summaries on S3; Days 41-45 are extra artifacts from the schedule leak.</td></tr><tr><th>Known live issues fixed</th><td>Spark zombie/OOM settings reduced; EC2 disk recovered from 100% full; missing reference data now restores from S3; Day 32 accidental retrain waits are blocked by champion cooldown; Kafka heap is capped and restartable; post-Day40 workflow schedule is disabled.</td></tr><tr><th>AWS shutdown status</th><td>EC2 g4dn.xlarge stopped; RDS db.t3.micro stopped; no NAT gateways available or pending.</td></tr><tr><th>Residual billable resources</th><td>125 GiB gp3 EBS volume; 20 GiB RDS storage; 21 automated RDS snapshots; ~4.80 GB current S3 objects with 387 versions; 1 ECR repo; 1 associated public IPv4/EIP.</td></tr><tr><th>Retention decision</th><td>Keep minimal retained AWS evidence resources for now. Day 41-45 extra artifacts can be deleted separately if desired.</td></tr></tbody></table></section>
 
   <section id="costs"><h2>6. Cost and Value Ledger</h2><p class="lead">The cost story is deliberately practical: use A100 only when its throughput is justified, use T4 for the 317K-parameter production retrains, stop idle RDS/EC2, and keep S3 as durable storage.</p>{table_from_rows(['Cost Item','Unit Cost / Estimate','Role','Planning Note'], cost_rows)}</section>
 

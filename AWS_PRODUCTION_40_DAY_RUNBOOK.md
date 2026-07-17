@@ -4,19 +4,25 @@
 > Scope: Day 1 AWS GPU training, v1 champion registration, automated 40-day data generation, drift detection, retraining, canary promotion or rollback, S3 cost cleanup, and final AWS shutdown.
 > Date started: 2026-05-24
 
+## Final Status — 2026-07-11
+
+The intended live AWS daily production run is complete. A 2026-07-17 audit found the schedule kept running through unintended Days 41-45. S3 `state/pipeline_state.json` now reports `current_day=46`, `last_completed_day=45`, `status=complete`, and `last_run=2026-07-16T02:05:57Z`. The active champion is `s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt` with `champion_updated_day=30`.
+
+AWS compute shutdown has been verified: EC2 `i-0562654a22d44346f` is stopped, RDS `p053-mlflow-db` is stopped, and no NAT gateways are available or pending. This stops EC2/RDS/NAT compute charges, but it does not guarantee an exact `$0` future bill. Remaining billable inventory from the final audit: 125 GiB gp3 EBS, 20 GiB RDS storage, 21 automated RDS snapshots, ~4.80 GB current S3 data with 387 object versions, 1 ECR repo, and 1 associated public IPv4/EIP. Retention decision: keep minimal evidence resources for now and accept small residual charges.
+
 ## Success Criteria
 
-- [ ] EC2 `g4dn.xlarge` launches successfully in `us-west-2` with a T4 GPU visible through `nvidia-smi`.
-- [ ] RDS `p053-mlflow-db` is running only for the production run window.
-- [ ] MLflow uses RDS PostgreSQL as backend and S3 as artifact root.
-- [ ] Day 1 full AWS training runs on EC2 GPU and produces v1 champion.
-- [ ] Airflow master DAG runs days 1-40 without manual intervention.
-- [ ] Daily synthetic production Parquet data is generated automatically with variable volumes.
-- [ ] Low-data or unreliable drift is tagged but does not trigger retraining.
-- [ ] Drift threshold triggers retraining on EC2 GPU and promotes v2 only after canary pass.
-- [ ] Day 39 bad deploy or canary failure rolls back to the previous champion.
+- [x] EC2 `g4dn.xlarge` launched and supported the production daily run path.
+- [x] RDS `p053-mlflow-db` was used only for the production window and is now stopped.
+- [x] MLflow/S3 artifact state preserved champion lineage and production artifacts.
+- [x] Day 1 A100 champion was uploaded to S3 and used as v1 starting point.
+- [x] GitHub Actions + Airflow daily DAG completed days 1-40.
+- [x] Daily synthetic production Parquet data was generated automatically with variable volumes.
+- [x] Low-data or unreliable drift is tagged but does not trigger retraining.
+- [x] Drift threshold/staleness triggered v2 promotion after canary on Day 30.
+- [x] Day 39 bad deploy or canary failure kept/rolled back to the v2 champion.
 - [ ] S3 raw production data is deleted or expired on a 10-day cost policy while models and reports are retained.
-- [ ] End-of-run cleanup stops EC2 and RDS, deletes any p053 NAT gateway, and verifies no expensive resources remain running.
+- [x] End-of-run cleanup stops EC2 and RDS, deletes/avoids any p053 NAT gateway, and verifies no expensive compute resources remain running.
 
 ## Automation Map
 
@@ -43,8 +49,9 @@
 | Day 19 | Sudden shift | New probe card appears, stronger drift signal. |
 | Day 20 | Threshold breach 1 | Drift threshold can be crossed, but retrain is blocked by staleness gate. |
 | Day 26 | Threshold breach 2 | More drift, still blocked by staleness gate. |
-| Day 31 | Retrain trigger | All criteria met, EC2 T4 retrains and canary decides promotion. |
-| Days 32-35 | Post-retrain recovery | v2 champion handles new distribution. |
+| Day 30 | Retrain trigger | Drift/staleness gate opened; v2 retrain promoted to champion and uploaded to S3. |
+| Day 31 | v2 champion validation | Day 31+ uses the Day 30 retrained model; Spark/disk recovery issues were fixed. |
+| Days 32-35 | Post-retrain recovery | v2 champion handles new distribution; cooldown gate prevents immediate retrain loops. |
 | Days 36-38 | Second drift | New recipe distribution appears. |
 | Day 39 | Bad deploy or canary failure | Canary fails deliberately or by metric degradation, rollback restores previous champion. |
 | Day 40 | Final recovery | Final run completes, auto-stop cleanup executes for `phase3`. |
@@ -669,13 +676,17 @@ Grafana: http://<EC2_IP>:3000
 S3:      s3://p053-mlflow-artifacts/
 ```
 
-Expected automated events:
+Actual completed events:
 
 - Days 1-8: generate steady data and reference window.
 - Days 9-30: drift warnings, threshold breaches, no retrain until staleness gate passes.
-- Day 31: retrain on EC2 T4, canary evaluation, promote v2 if passed.
-- Day 39: canary failure or deliberate rollback path, restore previous champion.
-- Day 40: final recovery, then `phase3` cleanup tries to stop RDS, delete p053 NAT gateway, and stop EC2.
+- Day 30: retrain/canary promoted `day30_v2_retrained.pt` as champion.
+- Day 31-33: production recovery fixed Spark memory, EC2 disk saturation, accidental retrain waits, and Kafka JVM heap risk.
+- Day 34-40: intended scheduled GitHub Actions runs completed successfully.
+- Day 39: canary failure or deliberate rollback path verified; v2 champion retained.
+- Day 40: final intended recovery completed; state advanced to `current_day=41`, `status=complete`; EC2/RDS stopped and NAT none.
+- Day 41-45: unintended scheduled GitHub Actions runs still executed because the completion check exited only one step, not the job.
+- 2026-07-17: workflow cron disabled and AWS-starting steps guarded by `should_run` so complete/day>40 state cannot start RDS/EC2.
 
 ## Phase 10: S3 Cleanup During And After Run
 
@@ -725,6 +736,7 @@ aws s3 ls s3://p053-mlflow-artifacts/canary/ --recursive
 - [ ] S3 screenshots: retained model/artifact prefixes and raw-data lifecycle rule.
 - [ ] AWS screenshots: EC2 stopped, RDS stopped, CloudWatch alarm, final cost.
 - [ ] Export key artifacts locally if needed for report generation.
+  - CLI audit on 2026-07-11 verified EC2 stopped, RDS stopped, NAT none, and Day 40 S3/GitHub completion. Browser screenshots remain optional evidence.
 
 ```bash
 aws s3 sync s3://p053-mlflow-artifacts/benchmarks/ data/aws_benchmarks/
@@ -818,12 +830,9 @@ Use this section as the live tracker.
 | 2026-06-02 | RDS stopped | Complete | `p053-mlflow-db` status confirmed `stopped` |
 | 2026-06-02 | Phase 2 complete | `p053-ec2-role` + `p053-ec2-profile` created and verified | `aws iam get-role` and `get-instance-profile` confirmed |
 | 2026-06-02 | Phase 3 complete | S3 lifecycle rule active on `data/production/` prefix | 10-day expiry for current + noncurrent versions |
-|  | RDS started |  |  |
-|  | EC2 launched |  |  |
-|  | Stack healthy |  |  |
-|  | Day 1 AWS v1 training complete |  |  |
-|  | Master DAG started |  |  |
-|  | Day 31 v2 retrain complete |  |  |
-|  | Day 39 rollback verified |  |  |
-|  | Raw S3 production data cleaned |  |  |
-|  | EC2/RDS/NAT stopped |  |  |
+| 2026-07-01 | Day 30 retrain recovery | Fixed retrain wait/timeout path and ensured S3 state updates after canary promotion | `daily_pipeline.yml` timeout raised; retrain artifacts/state uploaded |
+| 2026-07-03 | Day 31 recovery | Fixed Spark zombie/OOM and EC2 disk saturation | Spark memory reduced; Docker volumes/prune cleanup performed |
+| 2026-07-04 | Day 32-33 recovery | Fixed accidental retrain wait and Kafka memory risk | champion cooldown from S3; `KAFKA_HEAP_OPTS` and restart policy committed |
+| 2026-07-11 | Day 40 complete | Intended 40-day live AWS daily run complete | S3 state initially `current_day=41`, `last_completed_day=40`, `status=complete` |
+| 2026-07-11 | EC2/RDS/NAT stopped | No expensive compute resources running | EC2 stopped, RDS stopped, NAT none; residual storage/IP cleanup decision remains |
+| 2026-07-17 | Day 41-45 schedule leak fixed | Daily cron disabled and expensive steps guarded | S3 state observed `current_day=46`, `last_completed_day=45`; champion still Day 30 v2 |

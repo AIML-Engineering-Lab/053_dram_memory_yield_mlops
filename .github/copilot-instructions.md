@@ -1,7 +1,7 @@
 # P053 — DRAM Memory Yield MLOps — Complete Project Context
 
 > **This file IS the project memory. When asked "what are we doing?" or "what's next?" — read this file.**
-> **Last updated: 2026-04-12**
+> **Last updated: 2026-07-17**
 
 ---
 
@@ -10,7 +10,7 @@
 **Title:** P053 — DRAM Memory Yield Predictor with Full MLOps Pipeline  
 **GitHub:** `https://github.com/AIML-Engineering-Lab/053_dram_memory_yield_mlops` (PRIVATE)  
 **GitHub (personal):** `https://github.com/rajendarmuddasani/DRAM_Yield_Predictor_MLOps` (PRIVATE)  
-**Status:** 40-DAY A100 SIMULATION COMPLETE. Post-processing done. Cleanup & push phase.  
+**Status:** 40-DAY A100 SIMULATION COMPLETE + LIVE AWS 40-DAY DAILY RUN COMPLETE. Final reporting and residual-cost closeout phase.  
 **Scope:** Production-grade MLOps pipeline demonstrating principal-level engineering
 
 ### What This Project Demonstrates
@@ -46,6 +46,18 @@
 | Canary Failures | 1 (Day 39, rollback to v2) |
 | S3 Uploads | 40/40 days |
 | Model on S3 | `s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt` |
+
+### Live AWS 40-Day Daily Run Results (Completed July 11, 2026)
+| Metric | Value |
+|--------|-------|
+| Pipeline state | `current_day=46`, `last_completed_day=45`, `status=complete` after unintended Day 41-45 scheduled runs |
+| Last run | `2026-07-16T02:05:57Z` |
+| Latest GitHub Actions run | Day 45 scheduled run succeeded on commit `bd762d3`; cron disabled on 2026-07-17 fix |
+| Champion | `s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt` |
+| Champion updated day | 30 |
+| Full current artifacts | Days 29-45 production Parquet + drift reports + summaries; Days 41-45 are accidental extras |
+| AWS shutdown | EC2 `g4dn.xlarge` stopped; RDS `db.t3.micro` stopped; no NAT gateways active |
+| Cost caveat | Not exact `$0`: final audit found 125 GiB gp3 EBS, 20 GiB RDS, 21 RDS automated snapshots, ~4.80 GB current S3 data with 387 versions, 1 ECR repo, and 1 associated public IPv4/EIP. User chose to keep minimal evidence resources for now. |
 
 ---
 
@@ -161,11 +173,12 @@ for day in range(1, 41):
 ### Live Resources
 | Service | Status | Details |
 |---------|--------|---------|
-| **S3** | ACTIVE | `p053-mlflow-artifacts` (versioned, day1_champion.pt uploaded) |
+| **S3** | ACTIVE | `p053-mlflow-artifacts` (versioned; Day 1 and Day 30 champion models plus Day 29-45 live artifacts retained; Days 41-45 are accidental extras) |
 | **ECR** | ACTIVE | See deploy/aws/.env.aws for full URI |
 | **RDS** | STOPPED | `p053-mlflow-db` (Postgres 17, db.t3.micro) — see .env.aws for endpoint |
-| **EC2** | NOT LAUNCHED | GPU quota REJECTED, appeal submitted |
-| **EIP** | SAFE | RDS-managed, do NOT release |
+| **EC2** | STOPPED | `i-0562654a22d44346f` (`g4dn.xlarge`, T4 GPU) used for live daily run, now stopped |
+| **NAT Gateway** | NONE ACTIVE | Latest audit found no available or pending NAT gateways |
+| **EIP/Public IPv4** | REVIEW | Public IPv4/EIP/ENI resources can continue small VPC charges; delete only after artifact/evidence retention decision |
 
 ### AWS Account
 - **Region:** us-west-2 (Oregon)
@@ -174,10 +187,9 @@ for day in range(1, 41):
 - **Local IP (dynamic):** Check with `curl -s checkip.amazonaws.com` each session
 - **Budget alarm:** CloudWatch billing alarm active
 
-### GPU Quota Status
-- **Requested:** "Running On-Demand G and VT instances" → 4 vCPUs
-- **Status:** REJECTED (April 7). Appeal submitted with detailed use case.
-- **Next step:** Wait for appeal response. If rejected again, use Colab fallback.
+### GPU Quota / EC2 Status
+- GPU quota was later sufficient for `g4dn.xlarge`; the live AWS daily pipeline completed all 40 days.
+- Current action is not more quota work; it is cost closeout and artifact retention cleanup.
 
 ### ⚠️ RDS Auto-Restart Warning
 AWS automatically restarts a stopped RDS instance after **7 days**. If waiting >7 days for quota, re-stop it:
@@ -199,19 +211,19 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 | **P3** | GitHub (README, CI green) | ✅ DONE |
 | **P4** | CI/CD (GitHub Actions) | ✅ DONE |
 | **P6** | 40-day A100 simulation | ✅ DONE (219.4 min, 200M rows) |
+| **P7** | Live AWS 40-day daily run | ✅ DONE (Day 40 complete; Day 41-45 schedule leak fixed) |
 | **P8** | Report + charts regenerated | ✅ DONE |
-| **P10** | Cleanup, archive, push | 🟡 IN PROGRESS |
+| **P10** | Cleanup, archive, push | 🟡 FINAL CLOSEOUT |
 
-**Simulation complete. Cleanup and push phase.**
+**Simulation and live AWS daily run complete. Final closeout is docs/PDF, commit/push, and deciding whether to delete retained AWS evidence artifacts for near-zero ongoing cost.**
 
-### When GPU Quota Approved — Resume Sequence
-1. Check IP: `curl -s checkip.amazonaws.com` → update security group if changed
-2. Start RDS: `aws rds start-db-instance --db-instance-identifier p053-mlflow-db --region us-west-2`
-3. Fill .env.aws password (REPLACE_WITH_YOUR_PASSWORD placeholder)
-4. Launch EC2 g4dn.xlarge with ec2-user-data.sh bootstrap (~40 min)
-5. Verify services: Airflow :8080, MLflow :5001, FastAPI :8000
-6. Register Day 1 champion in MLflow Model Registry
-7. Trigger simulation master DAG → MacBook can be closed — EC2 autonomous
+### If More AWS Runs Are Ever Needed
+1. Confirm budget and artifact-retention choice first.
+2. Check IP: `curl -s checkip.amazonaws.com` → update security group if changed.
+3. Start RDS only for the run window: `aws rds start-db-instance --db-instance-identifier p053-mlflow-db --region us-west-2`.
+4. Start EC2 `i-0562654a22d44346f` or launch replacement `g4dn.xlarge`.
+5. Verify services: Airflow, MLflow, FastAPI, Kafka, Spark.
+6. Stop EC2/RDS immediately after the run; verify NAT/public IPv4/storage costs.
 
 ### When Using Colab Fallback
 1. Open NB04_colab_training.ipynb on Google Colab
@@ -303,7 +315,7 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 
 ## 9. CRITICAL FACTS (DO NOT FORGET)
 
-1. **EIP** = RDS ServiceManaged — do NOT release, no separate charge
+1. **Public IPv4/EIP can bill** under VPC even when compute is stopped; verify before claiming `$0` ongoing AWS cost.
 2. **AWS auto-restarts stopped RDS after 7 days** — re-stop if waiting >7 days
 3. **MacBook NOT needed** during EC2 simulation (autonomous) or Colab training (cloud)
 4. **Password:** `.env.aws` has a placeholder — fill in at deployment time. If password contains `@`, URL-encode as `%40`
@@ -312,7 +324,7 @@ aws rds stop-db-instance --db-instance-identifier p053-mlflow-db --region us-wes
 7. **CI pipeline:** ruff lint + pytest 20/20 + Docker build — Run #14+ passes
 8. **Ruff lint rules (NEVER reintroduce):** F541=f-string no placeholder (add `F541` to --extend-ignore and remove stray `f` prefix from HTML strings), I001=unsorted imports (run `ruff --fix`), E701=one-liner `if x: return` (always split to two lines), E401=`import a,b` (split per line). Pre-commit: `ruff check src/ tests/ --select E,W,F,I --extend-ignore E501,E402,E741,F401,F841,W291,W293,F541`
 8. **Colab Pro:** SGD 14.46/month, 100 CU/month. Buy 100 CU PAYG pack for ~22 CU of T4 training.
-9. **Day 1 champion already on S3:** `s3://p053-mlflow-artifacts/models/day1_champion.pt`
+9. **Current champion on S3:** `s3://p053-mlflow-artifacts/models/day30_v2_retrained.pt`
 10. **All sensitive IDs/endpoints stored in `.env.aws`** — never hardcode in source files
 
 ---
@@ -402,26 +414,11 @@ To open as standalone workspace:
 - [x] g05 post.txt fixed and pushed to GitHub
 - [x] All 20/20 tests passing
 
-### 🔜 IMMEDIATE (User Action Required)
-1. **Delete duplicate g05 LinkedIn posts** (old short version posted Apr 7 + Apr 8)
-2. **Trigger n8n** to repost g05 with correct improved content
-3. **Buy 100 CU PAYG** on Colab (SGD 14.46 for 100 CU)
-4. **Run simulation on Colab:**
-   - Open `NB04_colab_training.ipynb` on Google Colab
-   - Select T4 GPU runtime
-   - Run cells 1-4 (`--fast` first to verify)
-   - Then run cell 5 (`--full` for production)
-5. **Wait for AWS GPU quota appeal** — if approved, switch back to AWS EC2
-
-### ⏳ AFTER SIMULATION COMPLETES
-6. Take simulation screenshots (drift timeline, retrain events, model versions)
-7. Update dashboard with real simulation metrics
-8. Update report HTML with simulation results
-9. Generate PDF with Playwright
-10. Update README with final results
-11. Content hub post for P053
-12. Final commit + tag v2.0.0
-13. Stop/delete AWS resources
+### 🔜 IMMEDIATE FINAL CLOSEOUT
+1. Generate/verify final PDF outputs from refreshed HTML reports.
+2. Commit and push final trackers/reports.
+3. Decide retention: keep S3/RDS/EBS evidence for portfolio proof, or delete/archive for near-zero ongoing AWS cost.
+4. If deleting, remove only after screenshots/report evidence are captured; never delete blindly from S3 without confirming desired evidence is retained locally or in Git.
 
 ---
 
